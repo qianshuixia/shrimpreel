@@ -150,8 +150,9 @@ test('手机传图接口边界：未知 token、伪装成图片的文本、一�
   expect((await missing.json()).error).toBe('handoff_expired')
   expect((await take('x')).status()).toBe(410)
 
-  const created = await json<{ token: string; expiresAt: string }>(post(request, '/api/handoff'))
+  const created = await json<{ token: string; expiresAt: string; expiresInMs: number }>(post(request, '/api/handoff'))
   expect(Date.parse(created.expiresAt) - Date.now()).toBeGreaterThan(9 * 60_000)
+  expect(created.expiresInMs).toBe(10 * 60_000)
   // 还在等待
   expect((await take(created.token)).status()).toBe(204)
 

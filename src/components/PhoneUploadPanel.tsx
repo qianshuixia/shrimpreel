@@ -32,9 +32,9 @@ export function PhoneUploadPanel({ onPhoto, onClose }: { onPhoto: (file: File) =
     setSession(null)
     setExpired(false)
     setError(null)
-    api<{ token: string; expiresAt: string }>('/api/handoff', { method: 'POST', json: {} })
+    api<{ token: string; expiresInMs: number }>('/api/handoff', { method: 'POST', json: {} })
       .then((data) => {
-        if (!cancelled) setSession({ token: data.token, expiresAt: Date.parse(data.expiresAt) })
+        if (!cancelled) setSession({ token: data.token, expiresAt: Date.now() + data.expiresInMs })
       })
       .catch((err) => {
         if (!cancelled) setError(errorCode(err))

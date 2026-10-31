@@ -36,7 +36,8 @@ handoffRoutes.post('/', async (c) => {
   const expiresAt = Date.now() + HANDOFF_TTL_MS
   await c.env.MEDIA.put(keys.pending, new Uint8Array(0), { customMetadata: { expiresAt: String(expiresAt) } })
   c.header('Cache-Control', 'no-store')
-  return c.json({ token, expiresAt: new Date(expiresAt).toISOString() })
+  // expiresInMs 给倒计时用：客户端按本机时钟换算截止时间，不受本机和服务器的时钟差影响
+  return c.json({ token, expiresAt: new Date(expiresAt).toISOString(), expiresInMs: HANDOFF_TTL_MS })
 })
 
 handoffRoutes.post('/photo', async (c) => {

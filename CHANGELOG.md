@@ -4,6 +4,16 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-01
+
+### Fixed: the phone upload countdown no longer depends on the computer's clock
+
+- `POST /api/handoff` also returns `expiresInMs`, and the QR panel counts down from the moment the response arrives. It used to subtract the computer's clock from the server's `expiresAt`, so a clock that was a few seconds off showed more than 10:00 or marked the code expired early and stopped polling.
+
+Upgrading a site: merge upstream. No vars, secrets, migrations or copy changes.
+
+修复：扫码传图的倒计时不再依赖本机时钟。`POST /api/handoff` 额外返回 `expiresInMs`，二维码面板从收到响应时开始倒数。以前用服务器的 `expiresAt` 减本机时间，本机时钟差几秒就会显示超过 10:00，或者提前显示过期并停止轮询。站点升级：合并 upstream 即可，没有新增 vars、密钥、迁移和文案。
+
 ## 2026-10-31
 
 ### Changed: run only the related e2e specs while working
