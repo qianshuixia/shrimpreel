@@ -5,6 +5,7 @@
 //   GA4（不含广告功能）https://developers.google.com/tag-platform/security/guides/csp
 //   Google 登录与 One Tap https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid
 //   Turnstile https://developers.cloudflare.com/turnstile/reference/content-security-policy/
+//   Microsoft Clarity https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-csp
 //   Cloudflare Web Analytics：脚本在 static.cloudflareinsights.com，数据发到 cloudflareinsights.com
 // 支付收银台是整页跳转，不受 CSP 限制。
 
@@ -24,11 +25,12 @@ export function contentSecurityPolicy(nonce: string) {
       'https://static.cloudflareinsights.com',
       'https://challenges.cloudflare.com',
       'https://accounts.google.com/gsi/client',
+      'https://*.clarity.ms',
     ],
     // React 的 style 属性属于内联样式，只能放开 'unsafe-inline'（style-src 里有 nonce 时它会被忽略，所以这里不加 nonce）
     'style-src': ["'self'", "'unsafe-inline'", 'https://accounts.google.com/gsi/style'],
     // blob:：生成器里上传前的照片预览
-    'img-src': ["'self'", 'data:', 'blob:', 'https://www.googletagmanager.com', 'https://*.google-analytics.com'],
+    'img-src': ["'self'", 'data:', 'blob:', 'https://www.googletagmanager.com', 'https://*.google-analytics.com', 'https://*.clarity.ms', 'https://c.bing.com'],
     'connect-src': [
       "'self'",
       'https://www.googletagmanager.com',
@@ -37,6 +39,8 @@ export function contentSecurityPolicy(nonce: string) {
       'https://*.google.com',
       'https://cloudflareinsights.com',
       'https://accounts.google.com/gsi/',
+      'https://*.clarity.ms',
+      'https://c.bing.com',
     ],
     'frame-src': ['https://challenges.cloudflare.com', 'https://accounts.google.com/gsi/'],
     'frame-ancestors': ["'self'"],

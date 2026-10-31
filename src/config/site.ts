@@ -198,11 +198,14 @@ export const site = {
   // 填了 ga4Id 才启用 GA4：同时出现同意横幅和页脚“Cookie 设置”，访客接受前不加载 gtag.js（Consent Mode v2 basic 模式，见 lib/consent.ts）。
   // 填了 umamiWebsiteId 就在所有页面加载同域的 Umami 脚本（/s/script.js，由 Worker 代理，实例地址在 vars.UMAMI_ORIGIN，不进前端）；
   // Umami 不写 Cookie，不受同意横幅控制。
-  // 隐私政策的“Cookie 与统计”一节按这三项自动调整
+  // 填了 clarityId（Microsoft Clarity 项目 ID）就在正式域名上录制访客会话，同样会出现同意横幅；
+  // 访客接受前以无 Cookie 模式录制，接受后才写 Cookie（见 lib/consent.ts）。
+  // 隐私政策的“Cookie 与统计”一节按这几项自动调整
   analytics: {
     ga4Id: '',
     cfBeaconToken: '',
     umamiWebsiteId: '',
+    clarityId: '',
   },
 } as const
 

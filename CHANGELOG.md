@@ -4,6 +4,18 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-10-31
+
+### Added: optional Microsoft Clarity session recordings
+
+- **`analytics.clarityId`** (`src/config/site.ts`): a Microsoft Clarity project ID. When set, Clarity's loader is added to every page, but it only runs on `site.domain` and `www.` (not local dev, e2e, staging or `/admin`). It sends Clarity a `consentv2` signal before loading: `analytics_Storage` is `granted` only if the visitor accepted analytics cookies, otherwise Clarity records without cookies. Accepting or rejecting in the banner updates Clarity too, and rejecting makes Clarity delete its cookies.
+- The consent banner, the footer "Cookie settings" link and the consent gate on the `vt_attr` cookie now apply when `ga4Id` **or** `clarityId` is set (`CONSENT_REQUIRED` in `src/lib/consent.ts`). With only Clarity, accepting no longer tries to load gtag.js.
+- The privacy policy and the banner text mention Clarity when it is configured. The CSP allows `https://*.clarity.ms` and `https://c.bing.com`.
+
+Upgrading a site: merge upstream, then add `clarityId: ''` to `analytics` in `src/config/site.ts` if the merge didn't (fill in the project ID to turn it on). In Clarity's Settings → Setup, turn Cookies off. No vars, secrets or migrations.
+
+新增：可选的 Microsoft Clarity 录屏。`src/config/site.ts` 的 `analytics.clarityId` 填 Clarity 项目 ID 后，每个页面都带上加载脚本，但只在 `site.domain` 和 `www.` 上运行（本地 dev、e2e、staging 和 `/admin` 不运行）。加载前先发 `consentv2`：访客接受了统计 Cookie 才是 `analytics_Storage: granted`，否则 Clarity 以无 Cookie 模式录制。横幅里的接受和拒绝同步给 Clarity，拒绝时 Clarity 删除自己的 Cookie。同意横幅、页脚“Cookie 设置”和 `vt_attr` 的同意门槛改为填了 `ga4Id` 或 `clarityId` 就生效（`src/lib/consent.ts` 的 `CONSENT_REQUIRED`）；只配 Clarity 时接受不再尝试加载 gtag.js。配置了 Clarity 时，隐私政策和横幅文案会提到它；CSP 放行 `https://*.clarity.ms` 和 `https://c.bing.com`。站点升级：合并 upstream；若合并后 `analytics` 里没有 `clarityId: ''` 就补上（填项目 ID 即启用），并在 Clarity 后台 Settings → Setup 关掉 Cookies。没有新增 vars、密钥和迁移。
+
 ## 2026-10-27
 
 ### Changed: article covers get a headline, a tag and layouts

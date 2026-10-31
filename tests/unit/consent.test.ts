@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CONSENT_KEY, ga4BootstrapScript, saveConsent } from '#/lib/consent'
+import { CONSENT_KEY, clarityBootstrapScript, ga4BootstrapScript, saveConsent } from '#/lib/consent'
 
 const GA4_ID = 'G-TEST123'
 
@@ -76,6 +76,35 @@ describe('ga4BootstrapScript', () => {
   })
 })
 
+describe('clarityBootstrapScript', () => {
+  const clarity = (href: string, stored: string | null | 'throws' = null) => {
+    const env = browser(stored, href)
+    const global = env.run(clarityBootstrapScript('abc123', 'example.test')) as unknown as { clarity?: { q: IArguments[] } }
+    return { env, queue: (global.clarity?.q ?? []).map((args) => Array.from(args)) }
+  }
+
+  it('正式域名：先排队同意状态再加载 tag；未选择、拒绝或禁用存储时 analytics denied（无 Cookie 模式）', () => {
+    for (const stored of [null, 'denied', 'throws'] as const) {
+      const { env, queue } = clarity('https://www.example.test/pricing', stored)
+      expect(queue).toEqual([['consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' }]])
+      expect(env.appended.map((s) => s.src)).toEqual(['https://www.clarity.ms/tag/abc123'])
+    }
+  })
+
+  it('已同意：analytics granted，广告仍 denied', () => {
+    const { queue } = clarity('https://example.test/', 'granted')
+    expect(queue).toEqual([['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }]])
+  })
+
+  it('本地、staging 等其他主机和 /admin 不加载', () => {
+    for (const href of ['http://localhost:3200/', 'https://staging.example.test/', 'https://example.test.evil.dev/', 'https://example.test/admin/orders']) {
+      const { env, queue } = clarity(href)
+      expect(queue).toEqual([])
+      expect(env.appended).toEqual([])
+    }
+  })
+})
+
 describe('saveConsent', () => {
   afterEach(() => vi.unstubAllGlobals())
 
@@ -110,6 +139,20 @@ describe('saveConsent', () => {
         '_ga_TEST123=; Max-Age=0; Path=/; Domain=.example.test',
       ].sort(),
     )
+    expect(env.appended).toEqual([])
+  })
+
+  it('页面上有 Clarity 时同步同意状态；只配了 Clarity（ga4Id 为空）时接受也不加载 gtag.js', () => {
+    const env = browser(null, 'https://example.test/')
+    const clarity = vi.fn()
+    Object.assign(env.context.window, { clarity })
+    for (const [key, value] of Object.entries(env.context)) vi.stubGlobal(key, value)
+    saveConsent('', 'granted')
+    saveConsent('', 'denied')
+    expect(clarity.mock.calls).toEqual([
+      ['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }],
+      ['consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' }],
+    ])
     expect(env.appended).toEqual([])
   })
 })

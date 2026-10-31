@@ -65,7 +65,7 @@ function deleteCookie() {
   document.cookie = `${COOKIE}=; Max-Age=0; Path=/`
 }
 
-// 在客户端启动时调用一次；requireConsent 为 true（配置了 GA4）时，未接受统计 Cookie 就不写 vt_attr
+// 在客户端启动时调用一次；requireConsent 为 true（配置了 GA4 或 Clarity）时，未接受统计 Cookie 就不写 vt_attr
 export function captureAttribution(requireConsent: boolean) {
   if (typeof window === 'undefined') return
   try {

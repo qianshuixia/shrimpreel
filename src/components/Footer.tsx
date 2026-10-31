@@ -1,7 +1,7 @@
 import { LifeBuoy } from 'lucide-react'
 import { ARTICLES, site } from '#/config/site'
 import { ASK_AI, askAiUrl } from '#/lib/ask-ai'
-import { CONSENT_OPEN_EVENT } from '#/lib/consent'
+import { CONSENT_OPEN_EVENT, CONSENT_REQUIRED } from '#/lib/consent'
 import { absoluteUrl, useContent } from '#/lib/i18n'
 import { LanguageLinks } from './Nav'
 import { LocalLink, LogoMark } from './ui'
@@ -29,8 +29,8 @@ export function Footer() {
         { to: '/refund-policy', label: c.footer.refund },
         { to: '/report', label: c.footer.report },
       ],
-      // 只有启用 GA4 时才有同意横幅，才需要“Cookie 设置”
-      cookieSettings: Boolean(site.analytics.ga4Id),
+      // 启用 GA4 或 Clarity 时才有同意横幅，才需要“Cookie 设置”
+      cookieSettings: CONSENT_REQUIRED,
     },
   ]
   // 页脚两种模式下都是深色，颜色取主题的 --footer-bg / --footer-fg

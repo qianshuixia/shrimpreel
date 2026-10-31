@@ -5,7 +5,7 @@ import { CONSENT_OPEN_EVENT, readConsent, saveConsent, type Consent } from '#/li
 import { useContent } from '#/lib/i18n'
 import { LocalLink } from './ui'
 
-// 统计同意横幅（只在配置了 GA4 时渲染）。选择存在 localStorage，服务端无从得知，挂载后才决定是否显示；
+// 统计同意横幅（配置了 GA4 或 Clarity 时渲染）。选择存在 localStorage，服务端无从得知，挂载后才决定是否显示；
 // 右下角小卡片，不挡正文；“接受”和“拒绝”同样大小，× 只收起本次（不记录，下次访问再问）。
 // 页脚“Cookie 设置”派发 CONSENT_OPEN_EVENT 重新打开
 export function ConsentBanner({ ga4Id }: { ga4Id: string }) {

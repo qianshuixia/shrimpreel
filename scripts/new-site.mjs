@@ -115,7 +115,7 @@ for (const key of ['publishedAt', 'updatedAt']) {
   siteSrc = replaceOnce(siteSrc, siteFile, `seo.${key} = ${date}`, new RegExp(`(\\n    ${key}: )'[^']*'`), `$1${q(date)}`)
 }
 // 以下属于旧站的身份信息，新站必须重新申请
-for (const key of ['googleVerification', 'bingVerification', 'indexNowKey', 'ga4Id', 'cfBeaconToken', 'umamiWebsiteId']) {
+for (const key of ['googleVerification', 'bingVerification', 'indexNowKey', 'ga4Id', 'cfBeaconToken', 'umamiWebsiteId', 'clarityId']) {
   siteSrc = replaceOnce(siteSrc, siteFile, `${key} 清空`, new RegExp(`(\\n    ${key}: )'[^']*'`), `$1''`)
 }
 siteSrc = replaceOnce(siteSrc, siteFile, 'seo.sameAs 清空', /(\n    sameAs: )\[[^\]]*\]/, '$1[]')

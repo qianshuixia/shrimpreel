@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, errorCode, type ClientConfig, type PublicUser } from './api'
-import { site } from '#/config/site'
+import { CONSENT_REQUIRED } from './consent'
 import { captureAttribution, track } from './attribution'
 
 type SessionState = {
@@ -37,7 +37,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    captureAttribution(!!site.analytics.ga4Id)
+    captureAttribution(CONSENT_REQUIRED)
     void refresh()
   }, [refresh])
 

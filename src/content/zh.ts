@@ -17,7 +17,7 @@ export function zh(s: S): Content {
   const { uploadDays, outputDays } = s.retention
   const photoRetention = uploadDays > 0 ? `在上传 ${uploadDays} 天后自动删除` : '保留到你主动删除为止'
   const videoRetention = outputDays > 0 ? `在完成 ${outputDays} 天后自动删除` : '保留到你主动删除为止'
-  const { ga4Id, cfBeaconToken, umamiWebsiteId } = s.analytics
+  const { ga4Id, cfBeaconToken, umamiWebsiteId, clarityId } = s.analytics
   return {
     styles,
     meta: {
@@ -259,7 +259,9 @@ export function zh(s: S): Content {
     support: { label: '帮助与支持' },
     consent: {
       title: '统计 Cookie',
-      body: '我们用 Google Analytics 和一个记录来源链接的第一方 Cookie 了解网站的使用情况。点“接受”后才会写入，之后可在页脚“Cookie 设置”里修改。',
+      body: clarityId
+        ? `我们用${ga4Id ? ' Google Analytics、' : ' '}Microsoft Clarity 会话回放和一个记录来源链接的第一方 Cookie 了解网站的使用情况。点“接受”之前 Clarity 以无 Cookie 方式记录，其他都不写入；之后可在页脚“Cookie 设置”里修改。`
+        : '我们用 Google Analytics 和一个记录来源链接的第一方 Cookie 了解网站的使用情况。点“接受”后才会写入，之后可在页脚“Cookie 设置”里修改。',
       learnMore: '隐私政策',
       accept: '接受',
       reject: '拒绝',
@@ -534,14 +536,17 @@ export function zh(s: S): Content {
             p: [
               '网站使用少量运行所必需的 Cookie 和浏览器存储，例如登录会话、你选择的浅色或深色主题。',
               '我们还会写入一个第一方 Cookie（vt_attr，保留 90 天），记录你第一次和最近一次是从哪里来到本站的，例如来源网站或推广链接。它只用于了解哪些渠道带来了注册和购买，不会提供给广告网络。' +
-                (ga4Id ? '它只在你于横幅中接受统计 Cookie 后写入，撤回同意时一并删除。' : ''),
+                (ga4Id || clarityId ? '它只在你于横幅中接受统计 Cookie 后写入，撤回同意时一并删除。' : ''),
               s.referralRewardCredits > 0
                 ? '如果你打开了好友的邀请链接，我们会写入一个 Cookie（vt_ref，最多保留 30 天，注册后即删除），用于记录这次邀请。为防止滥用邀请奖励，邀请记录里保存的是你的 IP 地址加盐后的哈希值，不保存 IP 地址本身。邀请双方都看不到对方的账户信息。'
                 : '',
-              ga4Id || cfBeaconToken || umamiWebsiteId ? '' : '我们不使用第三方统计或广告 Cookie。',
+              ga4Id || cfBeaconToken || umamiWebsiteId || clarityId ? '' : '我们不使用第三方统计或广告 Cookie。',
               cfBeaconToken ? '我们用 Cloudflare Web Analytics 统计页面浏览量，它不使用 Cookie，也不会跨网站追踪你。' : '',
               umamiWebsiteId
                 ? '我们用 Umami 统计访问量，它从我们自己的域名加载，不写入 Cookie，也不保存你的 IP 地址；IP 地址只用于判断你所在的国家和统计独立访客。'
+                : '',
+              clarityId
+                ? '我们使用 Microsoft Clarity，通过热力图和会话回放（点击、滚动和页面切换）了解访客如何使用本站。你在表单中输入的文字会被遮盖，不会被记录。在你接受统计 Cookie 之前，Clarity 不写入 Cookie，也无法把不同页面的浏览关联起来；接受后它会写入 Cookie（例如 _clck、_clsk）来关联你的访问。Microsoft 代表我们处理这些数据，包括你的 IP 地址和设备信息。在页脚“Cookie 设置”中撤回同意会删除这些 Cookie。'
                 : '',
               ga4Id
                 ? '如果你在横幅中接受统计 Cookie，我们还会使用 Google Analytics。它会写入 Cookie（例如 _ga），并由 Google 处理你的 IP 地址和设备信息，为我们生成使用情况报告。在你点击“接受”之前不会加载 Google Analytics。你可以随时在页脚“Cookie 设置”中撤回同意，撤回时这些 Cookie 也会被删除。'
@@ -558,7 +563,7 @@ export function zh(s: S): Content {
                 },
               ]
             : []),
-          { h: '服务提供方', p: [`我们只使用少量数据处理方：云托管、存储与邮件发送、仅为你的请求处理照片的 AI 渲染服务、内容安全分类服务，以及作为记录商户（Merchant of Record）的支付服务${ga4Id || cfBeaconToken || umamiWebsiteId ? '；另有上文所述的统计服务' : ''}。`] },
+          { h: '服务提供方', p: [`我们只使用少量数据处理方：云托管、存储与邮件发送、仅为你的请求处理照片的 AI 渲染服务、内容安全分类服务，以及作为记录商户（Merchant of Record）的支付服务${ga4Id || cfBeaconToken || umamiWebsiteId || clarityId ? '；另有上文所述的统计服务' : ''}。`] },
           { h: '你的权利', p: [`你可以随时下载或删除视频，也可以在“设置”中导出个人数据（JSON）或注销账号。其他隐私请求请发送邮件至 ${s.supportEmail}。`] },
         ],
       },

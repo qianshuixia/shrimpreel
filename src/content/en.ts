@@ -20,7 +20,7 @@ export function en(s: S) {
   const { uploadDays, outputDays } = s.retention
   const photoRetention = uploadDays > 0 ? `deleted automatically ${uploadDays} days after upload` : 'kept until you delete them'
   const videoRetention = outputDays > 0 ? `kept for ${outputDays} days after they finish` : 'kept until you delete them'
-  const { ga4Id, cfBeaconToken, umamiWebsiteId } = s.analytics
+  const { ga4Id, cfBeaconToken, umamiWebsiteId, clarityId } = s.analytics
   // 每种风格的展示名和一句话介绍；site.styles 加风格时这里补一项（缺了 typecheck 报错），zh.ts 同
   const styles: Record<StyleId, StyleCopy> = {
     'neon-shuffle-v1': { name: k, tagline: 'The original routine, beat for beat.' },
@@ -283,7 +283,9 @@ export function en(s: S) {
     // 统计同意横幅：只在配置了 GA4 时出现
     consent: {
       title: 'Analytics cookies',
-      body: 'We use Google Analytics and a first-party referral cookie to see how the site is used. Nothing is set unless you accept; change it any time under “Cookie settings”.',
+      body: clarityId
+        ? `We use ${ga4Id ? 'Google Analytics, ' : ''}Microsoft Clarity session recordings and a first-party referral cookie to see how the site is used. Until you accept, Clarity records without cookies and nothing else is set; change it any time under “Cookie settings”.`
+        : 'We use Google Analytics and a first-party referral cookie to see how the site is used. Nothing is set unless you accept; change it any time under “Cookie settings”.',
       learnMore: 'Privacy Policy',
       accept: 'Accept',
       reject: 'Reject',
@@ -564,14 +566,17 @@ export function en(s: S) {
             p: [
               'The site uses a few cookies and similar browser storage that it needs to work, such as your sign-in session and your light or dark theme preference.',
               'We also set a first-party cookie (vt_attr, kept for 90 days) that records how you first and most recently reached us, such as a referring website or campaign link. We use it only to see which channels lead to sign-ups and purchases, and we do not share it with advertising networks.' +
-                (ga4Id ? ' It is only set after you accept analytics cookies in the banner, and withdrawing consent deletes it.' : ''),
+                (ga4Id || clarityId ? ' It is only set after you accept analytics cookies in the banner, and withdrawing consent deletes it.' : ''),
               s.referralRewardCredits > 0
                 ? 'If you open a friend’s invite link, we set a cookie (vt_ref, kept for up to 30 days and removed once you sign up) so the invite can be credited. To prevent abuse of invite rewards, we store a salted hash of your IP address with the invite, not the address itself. Neither of you can see the other’s account details.'
                 : '',
-              ga4Id || cfBeaconToken || umamiWebsiteId ? '' : 'We do not use third-party analytics or advertising cookies.',
+              ga4Id || cfBeaconToken || umamiWebsiteId || clarityId ? '' : 'We do not use third-party analytics or advertising cookies.',
               cfBeaconToken ? 'We count page views with Cloudflare Web Analytics, which does not use cookies or track you across websites.' : '',
               umamiWebsiteId
                 ? 'We count visits with Umami, a cookie-free analytics tool loaded from our own domain. It does not set cookies or store your IP address; your IP address is only used to determine your country and to count unique visits.'
+                : '',
+              clarityId
+                ? 'We use Microsoft Clarity to understand how visitors use the site through heatmaps and session recordings of clicks, scrolling and page changes. Text you type into forms is masked and not recorded. Until you accept analytics cookies, Clarity sets no cookies and cannot link one page view to the next; if you accept, it sets cookies (such as _clck and _clsk) to connect your visits. Microsoft processes this data, including your IP address and device information, on our behalf. Withdrawing consent under “Cookie settings” in the footer deletes these cookies.'
                 : '',
               ga4Id
                 ? 'If you accept analytics cookies in the banner, we also use Google Analytics. It sets cookies (such as _ga) and lets Google process your IP address and device information to produce usage reports for us. Google Analytics is not loaded until you accept. You can withdraw consent at any time under “Cookie settings” in the footer, which also deletes these cookies.'
@@ -588,7 +593,7 @@ export function en(s: S) {
                 },
               ]
             : []),
-          { h: 'Service providers', p: [`We rely on a small number of processors: cloud hosting, storage and email delivery, an AI rendering provider that processes your photo only for your request, a content-safety classifier, a payment provider acting as merchant of record${ga4Id || cfBeaconToken || umamiWebsiteId ? ', and the analytics services described above' : ''}.`] },
+          { h: 'Service providers', p: [`We rely on a small number of processors: cloud hosting, storage and email delivery, an AI rendering provider that processes your photo only for your request, a content-safety classifier, a payment provider acting as merchant of record${ga4Id || cfBeaconToken || umamiWebsiteId || clarityId ? ', and the analytics services described above' : ''}.`] },
           { h: 'Your rights', p: [`You can download or delete your videos at any time. In Settings you can export a copy of your data as JSON or delete your account. For any other privacy request, email ${s.supportEmail}.`] },
         ],
       },
