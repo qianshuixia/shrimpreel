@@ -6,6 +6,15 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-10-31
 
+### Changed: run only the related e2e specs while working
+
+- `AGENTS.md` no longer asks for the full `npm run test:e2e` (about 10 minutes, serial) after every change. While working, run `typecheck`, the unit tests and the specs related to the change plus `smoke.spec.ts`; run the full suite once before committing or merging into a site, or when touching credits, payments, permissions or the app entry points. CI still runs the full suite on pushes to `main` and on PRs.
+- `tests/e2e/CATALOG.md` has a new "改哪里跑哪些" table mapping source areas to specs; the README shows the command for running selected specs.
+
+Upgrading a site: merge upstream. No code changes.
+
+调整：改动过程中只跑相关的 e2e。`AGENTS.md` 不再要求每次改完都跑完整的 `npm run test:e2e`（串行约 10 分钟）：改动过程中跑 typecheck、单元测试，以及和改动相关的 spec 加 `smoke.spec.ts`；一批改动收尾、提交或合并到站点前，或动到积分、支付、权限和全站入口时，跑一次完整的。推送到 `main` 和 PR 时 CI 照常跑完整 e2e。`tests/e2e/CATALOG.md` 新增“改哪里跑哪些”对照表，README 给出只跑部分 spec 的命令。站点升级：合并 upstream 即可，没有代码改动。
+
 ### Added: keep the generator draft across sign-in, and upload a photo from a phone
 
 - The generator saves the chosen photo, style and length in IndexedDB (`src/lib/photo-draft.ts`, 24 hours) and restores them after sign-in or checkout. Signed-out visitors with a photo see that it is kept and the price of the cheapest pack covering the chosen length. The draft is cleared after a generation is created and on sign-out.

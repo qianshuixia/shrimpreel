@@ -40,7 +40,8 @@
 
 ## 测试
 
-- 改完至少跑 `npm run typecheck && npm test`；动到页面、API 或支付流程时跑 `npm run test:e2e`（需要先 `npm run seed:local`）。
+- 每次改完跑 `npm run typecheck && npm test`。改动过程中的 e2e 只跑相关的 spec 加 `smoke.spec.ts`（`npx playwright test tests/e2e/<名字>.spec.ts`，或 `-g '<标题片段>'`），对照表在 [tests/e2e/CATALOG.md](tests/e2e/CATALOG.md) 的“改哪里跑哪些”。
+- 完整的 `npm run test:e2e`（需要先 `npm run seed:local`，串行约 10 分钟）在一批改动收尾、提交或合并到站点之前跑一次；动到积分、支付、权限、`src/server.ts` 或 `src/server/app.ts` 这类全站入口时也跑完整的。推送到 `main` 和 PR 时 CI 会跑完整 e2e。
 - 同一时间只跑一套 e2e：Playwright 每次运行会清空 `.tmp/video-template-e2e/`，并发运行会互删 trace。端口被占用时用 `E2E_PORT=<port>` 换端口。
 - e2e 运行期间不要改 `src/`：dev server 热更新会让正在跑的用例假失败。
 - 改了支付商代码（`src/server/payments/`）或下单、回跳、查单流程时，有 test 凭据就跑 `SANDBOX_PROVIDER=dodo|waffo npm run test:sandbox`（见 `docs/payments.md`）。它会自己起 dev server，所以端口不能被占用。

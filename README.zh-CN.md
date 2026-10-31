@@ -397,7 +397,8 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
 ```bash
 npm run typecheck
 npm test            # vitest：Waffo/Dodo/Stripe 验签与事件映射、退款比例与退款单号规则、归因解析、生产环境禁用 mock、Turnstile 与图片审核的错误分支、邮件模板与发送重试判定、告警阈值与时间桶、GA4 同意前不加载与撤回删 Cookie、CSP 报告和前端错误上报的摘要与脱敏、登录跳转校验、Google 登录的 PKCE 与 nonce、账号按 sub 绑定与注销邮箱不再领注册赠送、成片下载大小上限、D1 备份的 SQL 转义、付款通知的消息格式与地址脱敏、归因 Cookie 等同意后才写入、5xx 详情不对非管理员返回、生产环境拒绝弱 SESSION_SECRET、上线配置检查与 doctor 的规则和 wrangler 输出解析、模板同步计划的分层、密钥同步计划的校验与脱敏、积分账务、兑换码、邀请奖励与订阅（日历月、年付补发、续费、乱序事件、周期校正时当期积分到期时间对齐、退款、Dodo/Waffo 事件映射，SQLite）、运营设置的校验缓存与每日上限、测试连接与脱敏、e2e 验收目录与用例一致
-npm run test:e2e    # Playwright：需要先 npm run seed:local；会复用已运行在 127.0.0.1:3000 的 dev server
+npm run test:e2e    # Playwright：需要先 npm run seed:local；会复用已运行在 127.0.0.1:3000 的 dev server；串行，约 10 分钟
+E2E_PORT=3200 npx playwright test tests/e2e/payments.spec.ts tests/e2e/smoke.spec.ts   # 只跑和改动相关的 spec，对照表见 tests/e2e/CATALOG.md 的“改哪里跑哪些”
 E2E_PORT=3200 npm run test:e2e   # 3000 被其它程序占用时换端口
 npm run seo:check   # 需要 dev server 在跑；报告写到 .tmp/seo-check/
 SMOKE_BASE_URL=https://<domain> npm run test:smoke   # 线上只读巡检，见“部署到 Cloudflare”

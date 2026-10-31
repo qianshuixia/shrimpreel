@@ -7,6 +7,31 @@
 
 用例写成 `文件` › `标题`。`tests/unit/catalog.test.ts` 会双向核对：这里引用的标题必须存在，`tests/e2e` 和 `tests/sandbox` 里的每个用例也必须在这里出现。新增、改名或删除用例时要同步更新本文件。
 
+## 改哪里跑哪些
+
+改动过程中只跑相关的 spec 和 `smoke.spec.ts`，例如 `E2E_PORT=3200 npx playwright test tests/e2e/payments.spec.ts tests/e2e/smoke.spec.ts`；完整 e2e 的时机见 AGENTS.md 的“测试”。下表按改动位置列出该跑的 spec，跨多行的改动取并集；表里找不到对应位置时跑完整 e2e。
+
+| 改动位置 | spec |
+| --- | --- |
+| `src/server/orders.ts`、`src/server/payments/`、`src/server/reconcile.ts`、价格页、`checkout/` | `payments`、`reconcile`、`subscriptions`、`referrals`、`email` |
+| `src/server/subscriptions.ts` | `subscriptions` |
+| `src/server/credits.ts`、`src/server/redeem.ts`、`src/server/referrals.ts` | `credits`、`generation`、`payments`、`redeem`、`referrals`、`subscriptions` |
+| `src/server/jobs.ts`、`src/server/media.ts`、`src/server/video/`、`src/server/moderation.ts`、生成器组件 | `generation`、`credits`、`compliance`、`phone-upload` |
+| `src/server/handoff.ts`、`src/lib/photo-draft.ts`、`phone-upload` 页 | `phone-upload` |
+| `src/server/retention.ts`、`src/server/takedown.ts`、`src/server/account-export.ts`、`/report` | `compliance`、`share`、`email` |
+| `src/server/shares.ts`、`v.$shareId` 页 | `share` |
+| `src/server/admin.ts`、`src/server/reports.ts`、`src/routes/admin/` | `admin`、`data-management`、`attribution` |
+| `src/server/settings.ts`、`src/server/runtime-config.ts`、`src/server/probes.ts` | `settings` |
+| `src/server/auth.ts`、`src/server/google.ts`、`sign-in` 页 | `sign-in`、`admin` |
+| `src/server/email.ts`、`src/server/email-templates.ts`、`src/server/resend.ts` | `email` |
+| `src/server/alerts.ts`、`src/server/client-error.ts`、错误页 | `alerts`、`client-errors` |
+| `src/server/csp.ts`、页面里的内联脚本 | `security-headers` |
+| `src/server/attribution.ts`、`src/lib/consent.ts` | `attribution` |
+| `src/server/seo.ts`、`src/content/*`、`src/config/site.ts`、页面路由和布局 | `seo` |
+| `dashboard/` 页 | `data-management`、`settings`、`share` |
+
+只改文档、`scripts/` 或单元测试时不用跑 e2e。
+
 e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock，用 `/api/dev/*` 模拟 Cron 和死信消费者。真实支付商的收银台由 `tests/sandbox` 手动验收，见“支付商 sandbox”；其他真实服务商的对接只有单元测试，见文末。
 
 ## P0 资金与积分
