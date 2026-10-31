@@ -228,7 +228,7 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
 ## 关键设计
 
 - **主题**：`site.theme` 选整站外观，写在 `<html data-skin>` 上，访客仍可切换亮色 / 暗色。`classic`（默认）：暖白纸张、品红强调、衬线标题、胶囊按钮；`acid`：锌黑 / 奶白、黄绿强调、无衬线粗标题、小圆角按钮。颜色、字体、圆角都是 `src/styles.css` 里的 CSS 变量，新增主题时在 `src/lib/theme.ts` 登记并写亮色、暗色两组变量（`tests/unit/theme.test.ts` 核对）。
-  - 统计同意卡片（只在填了 `ga4Id` 时出现）在右下角，不挡正文；“接受”和“拒绝”同样大小，× 只收起本次，不记录选择。
+  - 统计同意卡片（填了 `ga4Id` 或 `clarityId` 时启用，只对欧洲经济区、英国、瑞士和无法判断国家的访客自动弹出）在右下角，不挡正文；“接受”和“拒绝”同样大小，× 只收起本次，不记录选择。
   - 页脚“问问 AI”：链接 `/llms.txt`，并列出 ChatGPT、Claude、Perplexity、Gemini（Google AI Mode）、Grok 按钮，带一段预填提问（`footer.askAiPrompt`，含首页和 `llms.txt` 地址）在新标签打开，链接 `nofollow`。
 - **积分**：每笔变动都写流水，`idempotency_key` 唯一（`order:<id>`、`order_refund:<id>`、`generation:<id>` 等），与批次、余额更新在同一个 D1 batch 里，重复入账会整体回滚。
   - 批次：每次入账是一个批次（`credit_grants`），可以带到期时间。买的积分永不过期；注册赠送按运营设置里的有效期到期（默认 `site.signupBonusValidDays`，0 = 永不过期）；后台补发时可填有效期（1–3650 天）。
@@ -334,6 +334,7 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
   - Umami（可选）：填 `analytics.umamiWebsiteId` 和 `vars.UMAMI_ORIGIN`（实例地址，如 `https://umami.example.com`）。页面加载本站的 `/s/script.js`，上报到本站的 `/s/api/send`，由 Worker（`src/server/umami.ts`）代理，网页源码和 JS 里看不到实例域名。不写 Cookie，不受同意横幅控制；代理不转发 Cookie，访客 IP（`CF-Connecting-IP`）只用于判断国家和统计独立访客。只有 `APP_ENV=production` 才上报；本地 dev、e2e、staging 拿到的是空脚本，什么都不转发。`/admin` 后台页面不上报。
   - Microsoft Clarity（可选，热力图和会话回放）：`analytics.clarityId` 填项目 ID。只在 `site.domain`（含 `www.`）上加载，本地 dev、e2e、staging 和 `/admin` 都不加载。填了它也会出现同意横幅：访客接受前 Clarity 以无 Cookie 模式录制（`consentv2` 的 `analytics_Storage: denied`，每次页面浏览一个 ID），接受后才写 `_clck` / `_clsk`，拒绝时 Clarity 删除它们。在 Clarity 后台 Settings → Setup 把 **Cookies** 关掉，让项目按这些同意信号工作。表单输入由 Clarity 默认的遮盖规则隐藏。CSP 已放行 `https://*.clarity.ms` 和 `https://c.bing.com`。
   - 填了 `ga4Id` 才启用 GA4，同时出现同意横幅和页脚 “Cookie settings”。采用 Consent Mode v2 basic 模式：访客接受前不加载 gtag.js，事件只进 `dataLayer`；广告类同意项始终为 denied。拒绝或撤回时删除 `_ga`、`_ga_*`、`_gid`（当前主机和各级父域）。选择存在 `localStorage` 的 `consent.analytics`，逻辑见 `src/lib/consent.ts`。
+  - 按地区取默认值（和多数面向消费者的网站一样）：Worker 读 `cf-ipcountry`，把默认值写在 `<html data-consent-default>` 上。欧洲经济区、英国、瑞士的访客，以及国家未知的访客（`XX`、`T1` 或没有这个头，本地开发属于这一类）默认 `denied` 并弹横幅；其他地区默认 `granted`、不弹横幅，GA4、Clarity 的 Cookie 和 `vt_attr` 从第一个页面就生效，页脚“Cookie 设置”可以打开卡片拒绝。存储的选择始终优先于默认值。隐私政策按这个区分说明。
   - 来源归因写第一方 Cookie `vt_attr`（90 天）。填了 `ga4Id` 时它和 GA4 一样等访客接受后才写入：接受时补记本次访问的来源，拒绝或撤回时删除；没写 Cookie 的访客，注册和订单记为 direct，访问统计照常计数。没填 `ga4Id` 时没有横幅，`vt_attr` 直接写入；按欧盟 ePrivacy 的严格解释这也需要事先同意，主要面向欧盟用户时应启用横幅。逻辑见 `src/lib/attribution.ts`。
 - **导出我的数据**（GDPR 第 15、20 条）：个人中心设置页可下载 JSON（`GET /api/account/export`），包含账号、会话、订单、积分流水与批次、上传与生成记录、留言、本人提交的举报和发信记录；按用户限流。不含 R2 路径、服务商请求 ID、内部错误信息和成本，也不含他人针对本人视频的举报。媒体文件不打包，仍在保留期内的可从个人中心下载。字段清单见 `src/server/account-export.ts`。
 - **数据库备份**：每 5 分钟的 Cron 发现当天（UTC）还没有备份时，把 D1 导出成 SQL（建表语句加全部数据，`sessions` 只导结构），gzip 后存到 MEDIA 的 `backups/d1/<日期>.sql.gz`，保留 30 天（`src/server/backup.ts`）。当天最多尝试 3 次，第 3 次仍失败时给 `ADMIN_EMAILS` 发 `backup_failed` 告警。`backups/` 没有公开路由，R2 生命周期规则也不要覆盖它。

@@ -1,15 +1,17 @@
 import { runInNewContext } from 'node:vm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CONSENT_KEY, clarityBootstrapScript, ga4BootstrapScript, saveConsent } from '#/lib/consent'
+import { CONSENT_KEY, clarityBootstrapScript, ga4BootstrapScript, regionalConsentDefault, saveConsent } from '#/lib/consent'
 
 const GA4_ID = 'G-TEST123'
 
 // 最小浏览器环境：记录 dataLayer、追加到 <head> 的脚本和每次写 document.cookie 的内容
-function browser(stored: string | null | 'throws', href = 'https://example.test/checkout/result?email=buyer%40example.test&status=paid') {
+// regionDefault：服务端写在 <html data-consent-default> 上的地区默认值
+function browser(stored: string | null | 'throws', href = 'https://example.test/checkout/result?email=buyer%40example.test&status=paid', regionDefault = 'denied') {
   const appended: Array<{ src: string }> = []
   const cookieWrites: string[] = []
   let cookie = ''
   const document = {
+    documentElement: { getAttribute: (name: string) => (name === 'data-consent-default' ? regionDefault : null) },
     createElement: () => ({ async: false, src: '' }),
     head: { appendChild: (el: { src: string }) => appended.push(el) },
     querySelector: (selector: string) => appended.find((el) => selector.includes(el.src.split('?')[0]!)) ?? null,
@@ -45,6 +47,15 @@ function browser(stored: string | null | 'throws', href = 'https://example.test/
 
 const calls = (dataLayer: IArguments[]) => dataLayer.map((args) => Array.from(args))
 
+describe('regionalConsentDefault', () => {
+  it('EEA、英国、瑞士和无法判断国家的访客默认 denied，其他地区 granted', () => {
+    for (const country of ['DE', 'fr', 'IE', 'NO', 'IS', 'LI', 'GB', 'CH', 'XX', 'T1', '', null, undefined, 'EU1']) {
+      expect(regionalConsentDefault(country)).toBe('denied')
+    }
+    for (const country of ['US', 'SG', 'CN', 'HK', 'JP', 'BR', 'ca']) expect(regionalConsentDefault(country)).toBe('granted')
+  })
+})
+
 describe('ga4BootstrapScript', () => {
   it('没有选择过：分析和广告都默认 denied，不加载 gtag.js；page_location 去掉 email', () => {
     const env = browser(null)
@@ -64,6 +75,18 @@ describe('ga4BootstrapScript', () => {
     const global = env.run(ga4BootstrapScript(GA4_ID))
     expect(calls(global.dataLayer)[0]![2]).toMatchObject({ analytics_storage: 'granted', ad_storage: 'denied' })
     expect(env.appended.map((s) => s.src)).toEqual([`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`])
+  })
+
+  it('默认开启的地区：没选择过或禁用存储时按 granted 加载；拒绝过的仍不加载', () => {
+    for (const stored of [null, 'throws'] as const) {
+      const env = browser(stored, undefined, 'granted')
+      const global = env.run(ga4BootstrapScript(GA4_ID))
+      expect(calls(global.dataLayer)[0]![2]).toMatchObject({ analytics_storage: 'granted', ad_storage: 'denied' })
+      expect(env.appended).toHaveLength(1)
+    }
+    const env = browser('denied', undefined, 'granted')
+    expect(calls(env.run(ga4BootstrapScript(GA4_ID)).dataLayer)[0]![2]).toMatchObject({ analytics_storage: 'denied' })
+    expect(env.appended).toEqual([])
   })
 
   it('拒绝过或禁用存储：不加载', () => {
@@ -94,6 +117,16 @@ describe('clarityBootstrapScript', () => {
   it('已同意：analytics granted，广告仍 denied', () => {
     const { queue } = clarity('https://example.test/', 'granted')
     expect(queue).toEqual([['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }]])
+  })
+
+  it('默认开启的地区：没选择过时 granted，拒绝过的仍 denied', () => {
+    const run = (stored: string | null) => {
+      const env = browser(stored, 'https://example.test/', 'granted')
+      const global = env.run(clarityBootstrapScript('abc123', 'example.test')) as unknown as { clarity: { q: IArguments[] } }
+      return Array.from(global.clarity.q[0]!)
+    }
+    expect(run(null)).toEqual(['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }])
+    expect(run('denied')).toEqual(['consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' }])
   })
 
   it('本地、staging 等其他主机和 /admin 不加载', () => {

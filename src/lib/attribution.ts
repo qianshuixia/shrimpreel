@@ -1,9 +1,9 @@
 // 客户端来源采集：首次/最近一次触达写入 vt_attr cookie（90 天，服务端在注册/下单时读取），
 // 每个浏览器会话上报一次访问到 /api/t/visit，构成后台漏斗的第一步。字段与 src/server/attribution.ts 对齐。
-// 配置了 GA4（有同意横幅）时，vt_attr 和统计 Cookie 一样要等访客接受后才写：之前的触达只记在内存里，
+// 配置了 GA4 或 Clarity（有同意横幅）时，vt_attr 和统计 Cookie 一样按同意状态写（含地区默认值，见 lib/consent.ts）：之前的触达只记在内存里，
 // 拒绝或撤回时删除。没同意的访客注册、下单时没有归因 Cookie，记为 direct；访问上报不写 Cookie，照常发送。
 
-import { readConsent, type Consent } from './consent'
+import { effectiveConsent, type Consent } from './consent'
 import { isTransitHost } from './referrer'
 
 const COOKIE = 'vt_attr'
@@ -65,12 +65,12 @@ function deleteCookie() {
   document.cookie = `${COOKIE}=; Max-Age=0; Path=/`
 }
 
-// 在客户端启动时调用一次；requireConsent 为 true（配置了 GA4 或 Clarity）时，未接受统计 Cookie 就不写 vt_attr
+// 在客户端启动时调用一次；requireConsent 为 true（配置了 GA4 或 Clarity）时，统计 Cookie 未生效（没接受且地区默认 denied）就不写 vt_attr
 export function captureAttribution(requireConsent: boolean) {
   if (typeof window === 'undefined') return
   try {
     const touch = currentTouch()
-    const allowed = !requireConsent || readConsent() === 'granted'
+    const allowed = !requireConsent || effectiveConsent() === 'granted'
     const stored = (allowed && readCookie()) || {}
     const next = {
       first: stored.first ?? touch,

@@ -280,12 +280,15 @@ export function en(s: S) {
       askAiPrompt: (url: string, llms: string) => `What is ${b} (${url})? Summarize what it does, how pricing works and who it is for. Site summary for AI: ${llms}`,
     },
     support: { label: 'Help & support' },
-    // 统计同意横幅：只在配置了 GA4 时出现
+    // 统计同意横幅：配置了 GA4 或 Clarity 时出现；bodyOptOut 用于默认开启统计 Cookie 的地区（从页脚打开时）
     consent: {
       title: 'Analytics cookies',
       body: clarityId
         ? `We use ${ga4Id ? 'Google Analytics, ' : ''}Microsoft Clarity session recordings and a first-party referral cookie to see how the site is used. Until you accept, Clarity records without cookies and nothing else is set; change it any time under “Cookie settings”.`
         : 'We use Google Analytics and a first-party referral cookie to see how the site is used. Nothing is set unless you accept; change it any time under “Cookie settings”.',
+      bodyOptOut: clarityId
+        ? `Analytics cookies are on by default in your region. We use ${ga4Id ? 'Google Analytics, ' : ''}Microsoft Clarity session recordings and a first-party referral cookie to see how the site is used. Choose “Reject” to turn them off; Clarity then records without cookies.`
+        : 'Analytics cookies are on by default in your region. We use Google Analytics and a first-party referral cookie to see how the site is used. Choose “Reject” to turn them off.',
       learnMore: 'Privacy Policy',
       accept: 'Accept',
       reject: 'Reject',
@@ -566,7 +569,10 @@ export function en(s: S) {
             p: [
               'The site uses a few cookies and similar browser storage that it needs to work, such as your sign-in session and your light or dark theme preference.',
               'We also set a first-party cookie (vt_attr, kept for 90 days) that records how you first and most recently reached us, such as a referring website or campaign link. We use it only to see which channels lead to sign-ups and purchases, and we do not share it with advertising networks.' +
-                (ga4Id || clarityId ? ' It is only set after you accept analytics cookies in the banner, and withdrawing consent deletes it.' : ''),
+                (ga4Id || clarityId ? ' It is only set while analytics cookies are on, and turning them off deletes it.' : ''),
+              ga4Id || clarityId
+                ? 'If you visit from the European Economic Area, the United Kingdom or Switzerland, or we cannot tell where you are visiting from, analytics cookies stay off until you accept them in the banner. Elsewhere they are on by default. Wherever you are, you can turn them on or off at any time under “Cookie settings” in the footer; turning them off deletes them.'
+                : '',
               s.referralRewardCredits > 0
                 ? 'If you open a friend’s invite link, we set a cookie (vt_ref, kept for up to 30 days and removed once you sign up) so the invite can be credited. To prevent abuse of invite rewards, we store a salted hash of your IP address with the invite, not the address itself. Neither of you can see the other’s account details.'
                 : '',
@@ -576,10 +582,10 @@ export function en(s: S) {
                 ? 'We count visits with Umami, a cookie-free analytics tool loaded from our own domain. It does not set cookies or store your IP address; your IP address is only used to determine your country and to count unique visits.'
                 : '',
               clarityId
-                ? 'We use Microsoft Clarity to understand how visitors use the site through heatmaps and session recordings of clicks, scrolling and page changes. Text you type into forms is masked and not recorded. Until you accept analytics cookies, Clarity sets no cookies and cannot link one page view to the next; if you accept, it sets cookies (such as _clck and _clsk) to connect your visits. Microsoft processes this data, including your IP address and device information, on our behalf. Withdrawing consent under “Cookie settings” in the footer deletes these cookies.'
+                ? 'We use Microsoft Clarity to understand how visitors use the site through heatmaps and session recordings of clicks, scrolling and page changes. Text you type into forms is masked and not recorded. While analytics cookies are off, Clarity sets no cookies and cannot link one page view to the next; while they are on, it sets cookies (such as _clck and _clsk) to connect your visits. Microsoft processes this data, including your IP address and device information, on our behalf. Turning analytics cookies off under “Cookie settings” in the footer deletes these cookies.'
                 : '',
               ga4Id
-                ? 'If you accept analytics cookies in the banner, we also use Google Analytics. It sets cookies (such as _ga) and lets Google process your IP address and device information to produce usage reports for us. Google Analytics is not loaded until you accept. You can withdraw consent at any time under “Cookie settings” in the footer, which also deletes these cookies.'
+                ? 'While analytics cookies are on, we also use Google Analytics. It sets cookies (such as _ga) and lets Google process your IP address and device information to produce usage reports for us. Google Analytics is not loaded while they are off, and turning them off under “Cookie settings” in the footer also deletes these cookies.'
                 : '',
             ].filter(Boolean),
           },

@@ -1,12 +1,13 @@
 /// <reference types="vite/client" />
 import { HeadContent, Outlet, Scripts, createRootRoute, useRouterState, type ErrorComponentProps } from '@tanstack/react-router'
+import { getGlobalStartContext } from '@tanstack/react-start'
 import { useEffect, useState, type ReactNode } from 'react'
 import { ConsentBanner } from '#/components/ConsentBanner'
 import { Footer } from '#/components/Footer'
 import { Nav } from '#/components/Nav'
 import { LocalLink } from '#/components/ui'
 import { site } from '#/config/site'
-import { CONSENT_REQUIRED, clarityBootstrapScript, ga4BootstrapScript } from '#/lib/consent'
+import { CONSENT_REQUIRED, clarityBootstrapScript, consentDefault, ga4BootstrapScript, type Consent } from '#/lib/consent'
 import { installErrorReporting, reportClientError } from '#/lib/error-report'
 import { htmlLang, loadContent, localeFromPathname, useContent } from '#/lib/i18n'
 import { SessionProvider } from '#/lib/session'
@@ -69,11 +70,24 @@ export const Route = createRootRoute({
   errorComponent: ErrorPage,
 })
 
+// 统计 Cookie 的地区默认值：服务端取 src/server.ts 传入的请求上下文，客户端读回服务端写在 <html> 上的值，两边一致
+function pageConsentDefault(): Consent {
+  if (typeof document !== 'undefined') return consentDefault()
+  const context = getGlobalStartContext() as { consentDefault?: Consent } | undefined
+  return context?.consentDefault ?? 'denied'
+}
+
 function RootDocument({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const [defaultConsent] = useState(pageConsentDefault)
   useEffect(installErrorReporting, [])
   return (
-    <html lang={htmlLang(localeFromPathname(pathname))} data-skin={site.theme} suppressHydrationWarning>
+    <html
+      lang={htmlLang(localeFromPathname(pathname))}
+      data-skin={site.theme}
+      data-consent-default={CONSENT_REQUIRED ? defaultConsent : undefined}
+      suppressHydrationWarning
+    >
       <head>
         <HeadContent />
       </head>

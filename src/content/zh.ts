@@ -262,6 +262,9 @@ export function zh(s: S): Content {
       body: clarityId
         ? `我们用${ga4Id ? ' Google Analytics、' : ' '}Microsoft Clarity 会话回放和一个记录来源链接的第一方 Cookie 了解网站的使用情况。点“接受”之前 Clarity 以无 Cookie 方式记录，其他都不写入；之后可在页脚“Cookie 设置”里修改。`
         : '我们用 Google Analytics 和一个记录来源链接的第一方 Cookie 了解网站的使用情况。点“接受”后才会写入，之后可在页脚“Cookie 设置”里修改。',
+      bodyOptOut: clarityId
+        ? `你所在的地区默认开启统计 Cookie。我们用${ga4Id ? ' Google Analytics、' : ' '}Microsoft Clarity 会话回放和一个记录来源链接的第一方 Cookie 了解网站的使用情况。点“拒绝”即可关闭，之后 Clarity 以无 Cookie 方式记录。`
+        : '你所在的地区默认开启统计 Cookie。我们用 Google Analytics 和一个记录来源链接的第一方 Cookie 了解网站的使用情况。点“拒绝”即可关闭。',
       learnMore: '隐私政策',
       accept: '接受',
       reject: '拒绝',
@@ -536,7 +539,10 @@ export function zh(s: S): Content {
             p: [
               '网站使用少量运行所必需的 Cookie 和浏览器存储，例如登录会话、你选择的浅色或深色主题。',
               '我们还会写入一个第一方 Cookie（vt_attr，保留 90 天），记录你第一次和最近一次是从哪里来到本站的，例如来源网站或推广链接。它只用于了解哪些渠道带来了注册和购买，不会提供给广告网络。' +
-                (ga4Id || clarityId ? '它只在你于横幅中接受统计 Cookie 后写入，撤回同意时一并删除。' : ''),
+                (ga4Id || clarityId ? '它只在统计 Cookie 开启时写入，关闭时一并删除。' : ''),
+              ga4Id || clarityId
+                ? '如果你从欧洲经济区、英国或瑞士访问，或者我们无法判断你从哪里访问，统计 Cookie 在你于横幅中接受之前保持关闭；其他地区默认开启。无论你在哪里，都可以随时在页脚“Cookie 设置”中开启或关闭，关闭时这些 Cookie 会被删除。'
+                : '',
               s.referralRewardCredits > 0
                 ? '如果你打开了好友的邀请链接，我们会写入一个 Cookie（vt_ref，最多保留 30 天，注册后即删除），用于记录这次邀请。为防止滥用邀请奖励，邀请记录里保存的是你的 IP 地址加盐后的哈希值，不保存 IP 地址本身。邀请双方都看不到对方的账户信息。'
                 : '',
@@ -546,10 +552,10 @@ export function zh(s: S): Content {
                 ? '我们用 Umami 统计访问量，它从我们自己的域名加载，不写入 Cookie，也不保存你的 IP 地址；IP 地址只用于判断你所在的国家和统计独立访客。'
                 : '',
               clarityId
-                ? '我们使用 Microsoft Clarity，通过热力图和会话回放（点击、滚动和页面切换）了解访客如何使用本站。你在表单中输入的文字会被遮盖，不会被记录。在你接受统计 Cookie 之前，Clarity 不写入 Cookie，也无法把不同页面的浏览关联起来；接受后它会写入 Cookie（例如 _clck、_clsk）来关联你的访问。Microsoft 代表我们处理这些数据，包括你的 IP 地址和设备信息。在页脚“Cookie 设置”中撤回同意会删除这些 Cookie。'
+                ? '我们使用 Microsoft Clarity，通过热力图和会话回放（点击、滚动和页面切换）了解访客如何使用本站。你在表单中输入的文字会被遮盖，不会被记录。统计 Cookie 关闭时，Clarity 不写入 Cookie，也无法把不同页面的浏览关联起来；开启时它会写入 Cookie（例如 _clck、_clsk）来关联你的访问。Microsoft 代表我们处理这些数据，包括你的 IP 地址和设备信息。在页脚“Cookie 设置”中关闭统计 Cookie 会删除这些 Cookie。'
                 : '',
               ga4Id
-                ? '如果你在横幅中接受统计 Cookie，我们还会使用 Google Analytics。它会写入 Cookie（例如 _ga），并由 Google 处理你的 IP 地址和设备信息，为我们生成使用情况报告。在你点击“接受”之前不会加载 Google Analytics。你可以随时在页脚“Cookie 设置”中撤回同意，撤回时这些 Cookie 也会被删除。'
+                ? '统计 Cookie 开启时，我们还会使用 Google Analytics。它会写入 Cookie（例如 _ga），并由 Google 处理你的 IP 地址和设备信息，为我们生成使用情况报告。统计 Cookie 关闭时不会加载 Google Analytics，在页脚“Cookie 设置”中关闭时这些 Cookie 也会被删除。'
                 : '',
             ].filter(Boolean),
           },

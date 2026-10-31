@@ -6,6 +6,16 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-10-31
 
+### Changed: the consent banner only asks visitors from the EEA, the UK and Switzerland
+
+- With `ga4Id` or `clarityId` set, the default for analytics cookies now depends on the visitor's country (`cf-ipcountry`). The EEA, the UK, Switzerland and unknown countries (`XX`, `T1`, no header) default to `denied` and see the banner as before. Everywhere else defaults to `granted` without a banner: GA4 loads, Clarity may set its cookies and `vt_attr` is written from the first page view. The footer "Cookie settings" opens the card, which then explains that cookies are on by default and can be rejected. A stored choice always overrides the default.
+- `src/server.ts` passes the default to the page through the request context; it is rendered on `<html data-consent-default>` and read by the inline GA4/Clarity scripts, the banner and the attribution code (`regionalConsentDefault`, `consentDefault` and `effectiveConsent` in `src/lib/consent.ts`).
+- New copy key `consent.bodyOptOut`; the privacy policy's cookie section describes the regional split.
+
+Upgrading a site: merge upstream. Add `bodyOptOut` to `consent` in `src/content/en.ts` and `zh.ts` if the merge didn't (typecheck reports it), and check the privacy policy's cookie paragraphs if the site rewrote them. After deploying, open the site with a US and an EU IP (or `cf-ipcountry`) to confirm the banner only shows for the EU. No vars, secrets or migrations.
+
+调整：同意横幅只对欧洲经济区、英国和瑞士的访客弹出。填了 `ga4Id` 或 `clarityId` 时，统计 Cookie 的默认值按访客国家（`cf-ipcountry`）决定：欧洲经济区、英国、瑞士和无法判断的国家（`XX`、`T1`、没有这个头）默认 `denied`，照旧弹横幅；其他地区默认 `granted`、不弹横幅，GA4 直接加载，Clarity 可以写 Cookie，`vt_attr` 从第一个页面就写入。页脚“Cookie 设置”可以打开卡片，此时说明的是“默认开启、可拒绝”。存储的选择始终优先于默认值。`src/server.ts` 经请求上下文把默认值交给页面，渲染在 `<html data-consent-default>` 上，GA4/Clarity 内联脚本、横幅和归因代码都从这里读（`src/lib/consent.ts` 的 `regionalConsentDefault`、`consentDefault`、`effectiveConsent`）。新增文案键 `consent.bodyOptOut`，隐私政策的 Cookie 一节按地区分别说明。站点升级：合并 upstream；若合并后 `src/content/en.ts`、`zh.ts` 的 `consent` 里没有 `bodyOptOut` 就补上（typecheck 会报），站点改写过隐私政策 Cookie 段落的要核对一遍。部署后分别用美国和欧盟 IP（或 `cf-ipcountry`）访问，确认横幅只对欧盟弹出。没有新增 vars、密钥和迁移。
+
 ### Added: optional Microsoft Clarity session recordings
 
 - **`analytics.clarityId`** (`src/config/site.ts`): a Microsoft Clarity project ID. When set, Clarity's loader is added to every page, but it only runs on `site.domain` and `www.` (not local dev, e2e, staging or `/admin`). It sends Clarity a `consentv2` signal before loading: `analytics_Storage` is `granted` only if the visitor accepted analytics cookies, otherwise Clarity records without cookies. Accepting or rejecting in the banner updates Clarity too, and rejecting makes Clarity delete its cookies.

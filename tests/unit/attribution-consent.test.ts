@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CONSENT_KEY } from '#/lib/consent'
 
 // 最小浏览器环境：document.cookie 按名字存取，记录每次写入；fetch 只记录调用
-function browser(consent: string | null, initialCookie = '') {
+// regionDefault：服务端写在 <html data-consent-default> 上的地区默认值
+function browser(consent: string | null, initialCookie = '', regionDefault = 'denied') {
   const jar = new Map<string, string>()
   for (const part of initialCookie.split(';').filter(Boolean)) {
     const [name, value] = part.trim().split('=')
@@ -11,6 +12,7 @@ function browser(consent: string | null, initialCookie = '') {
   const writes: string[] = []
   const document = {
     referrer: 'https://news.example.org/post/1',
+    documentElement: { getAttribute: (name: string) => (name === 'data-consent-default' ? regionDefault : null) },
     get cookie() {
       return [...jar].map(([k, v]) => `${k}=${v}`).join('; ')
     },
@@ -50,6 +52,18 @@ describe('captureAttribution', () => {
     captureAttribution(false)
     expect(decode(env.jar.get('vt_attr')!).first).toMatchObject({ utm_source: 'launch', landing: '/pricing', referrer: 'https://news.example.org/post/1' })
     expect(env.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('默认开启统计 Cookie 的地区、还没选择：直接写 vt_attr；拒绝过的访客仍不写', async () => {
+    const env = browser(null, '', 'granted')
+    const { captureAttribution } = await load()
+    captureAttribution(true)
+    expect(decode(env.jar.get('vt_attr')!).first).toMatchObject({ utm_source: 'launch' })
+
+    vi.resetModules()
+    const denied = browser('denied', '', 'granted')
+    ;(await load()).captureAttribution(true)
+    expect(denied.jar.has('vt_attr')).toBe(false)
   })
 
   it('配置了 GA4、还没选择：不写 Cookie，访问照常上报；接受后补写本次触达，只写一次', async () => {

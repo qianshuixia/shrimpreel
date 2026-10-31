@@ -300,7 +300,7 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 | 限流（`UPLOAD_LIMITER`、`GENERATE_LIMITER`、`AUTH_LIMITER`） | 要在 60 秒内打满额度；本地 binding 的计数是否和线上一致没有核实过 | 无 | 线上手工验证 |
 | Queues 真实重试与死信、Cron 真实触发 | 真实死信要重试 10 次（约 35 分钟） | 用 `/api/dev/dead-letter`、`/api/dev/sweep`、`/api/dev/health-check` 等模拟 | 无 |
 | 支付争议与拒付 | test 模式无法触发 | 不认识的事件记为 ignored（单元测试） | 遇到时再补 |
-| Cookie 同意横幅 | 模板没有填 `ga4Id`，横幅不显示 | `consent.test.ts`；归因 Cookie 的同意逻辑由 `attribution-consent.test.ts` 覆盖 | 热词站填了 `ga4Id` 后手工检查 |
+| Cookie 同意横幅 | 模板没有填 `ga4Id`，横幅不显示 | `consent.test.ts`（含按国家取默认值）；归因 Cookie 的同意逻辑由 `attribution-consent.test.ts` 覆盖 | 热词站填了 `ga4Id` 后手工检查，带 `cf-ipcountry: US` 和 `DE` 各访问一次 |
 | 分享封面截帧和社交平台预览 | Playwright 的 Chromium 不带 H.264 解码，截帧返回 null，e2e 改为直接上传 fixture 照片；社交平台抓取需要公网地址 | 服务端封面校验（长度、JPEG、审核）由 `share.spec.ts` 覆盖；截帧失败时分享页回落到站点默认 OG 图 | 热词站上线后在 Chrome、Safari 各分享一次，用平台的链接调试工具检查预览 |
 | D1 备份的线上 Cron 与恢复 | 模板不部署；本地只能用 `/api/dev/backup` 触发 | `backup.test.ts`；本地做过一次导出 → `scripts/restore-d1.mjs` 恢复的往返核对 | 热词站上线后确认 R2 每天有新文件，按 README 演练一次恢复 |
 | 付款即时通知的真实发送 | 需要真实的 Telegram、飞书或 Discord webhook | `chat-notify.test.ts` 按各平台文档构造请求 | 热词站配置 webhook 后付一单测试款 |

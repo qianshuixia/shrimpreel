@@ -59,7 +59,7 @@
 - `packages`：积分包。`id` 要在 `*_PRODUCTS` 里有对应的商品，页面上的价格要和支付商后台一致。
 - `subscriptionsEnabled`、`plans`：订阅开关和套餐（`interval` 为 `month` 或 `year`，`credits` 是每月发放量）。套餐同样要在 `*_PRODUCTS` 里有商品；不卖订阅时把开关设为 `false`。用法见 [subscriptions.md](subscriptions.md)，入账规则见 [payments.md](payments.md) 的“订阅”。
 - `video`：模型、源视频帧率和每视频秒的成本，用于估算毛利。
-- `analytics.ga4Id`、`analytics.cfBeaconToken`、`analytics.umamiWebsiteId`、`analytics.clarityId`：统计。`umamiWebsiteId` 配合 `UMAMI_ORIGIN` 使用，同域代理、不写 Cookie、不受横幅控制。`clarityId` 是 Microsoft Clarity 项目 ID，只在正式域名加载，未同意时无 Cookie 录制。填了 `ga4Id` 或 `clarityId` 才会显示 Cookie 同意横幅，此时归因 Cookie `vt_attr` 也等访客同意后才写入。
+- `analytics.ga4Id`、`analytics.cfBeaconToken`、`analytics.umamiWebsiteId`、`analytics.clarityId`：统计。`umamiWebsiteId` 配合 `UMAMI_ORIGIN` 使用，同域代理、不写 Cookie、不受横幅控制。`clarityId` 是 Microsoft Clarity 项目 ID，只在正式域名加载，未同意时无 Cookie 录制。填了 `ga4Id` 或 `clarityId` 才启用 Cookie 同意：欧洲经济区、英国、瑞士和无法判断国家的访客默认关闭并弹横幅，其他地区默认开启、可在页脚“Cookie 设置”里拒绝（按 `cf-ipcountry` 判断，见 `src/lib/consent.ts`）；归因 Cookie `vt_attr` 跟随同一个同意状态。
 - `share.enabled`：成片公开分享页，默认开启。换脸、真人类站点风险高时设为 `false`，个人中心的分享按钮和 `/v/<id>` 页面都不出现。
 - `seo.googleVerification`、`seo.bingVerification`、`seo.indexNowKey`：站长验证和 IndexNow。用 `new-site.mjs` 派生新站时会被清空。
 

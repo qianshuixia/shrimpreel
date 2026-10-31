@@ -200,6 +200,7 @@ export const site = {
   // Umami 不写 Cookie，不受同意横幅控制。
   // 填了 clarityId（Microsoft Clarity 项目 ID）就在正式域名上录制访客会话，同样会出现同意横幅；
   // 访客接受前以无 Cookie 模式录制，接受后才写 Cookie（见 lib/consent.ts）。
+  // 同意横幅只对欧洲经济区、英国、瑞士和无法判断国家的访客自动弹出，其他地区默认同意、可在页脚拒绝（按 cf-ipcountry 判断）。
   // 隐私政策的“Cookie 与统计”一节按这几项自动调整
   analytics: {
     ga4Id: '',
