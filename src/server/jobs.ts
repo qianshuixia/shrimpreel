@@ -4,7 +4,7 @@ import { expireStatements, generationRefundStatements } from './credits'
 import { notifyGenerationFinished } from './notifications'
 import { reconcilePendingOrders } from './reconcile'
 import type { GenerationRow, UploadRow, VideoJobMessage } from './types'
-import { sweepExpiredMedia } from './retention'
+import { sweepExpiredMedia, sweepHandoff } from './retention'
 import { grantDueSubscriptions } from './subscriptions'
 import { nowIso } from './util'
 import { getVideoProvider } from './video'
@@ -315,6 +315,9 @@ export async function runScheduledMaintenance(env: Env) {
 
   const swept = await sweepExpiredMedia(env)
   if (swept.uploads || swept.outputs) console.log('retention sweep', swept)
+  // 手机传图的中转对象（handoff/）：没被取走的最长保留 1 小时
+  const handoff = await sweepHandoff(env)
+  if (handoff) console.log('handoff sweep', handoff)
 
   // 24 小时内的 pending 订单向支付商查单，补救丢失的 webhook（超过 24 小时的已在上面取消，两者不重叠）
   const reconciled = await reconcilePendingOrders(env)

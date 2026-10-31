@@ -25,6 +25,8 @@ A 72-second tour, no sound ([Chinese version](README.zh-CN.md); MP4 files in [do
 - Included:
   - Users and credits: Google sign-in (including One Tap), credit packs, monthly and yearly subscriptions and a credit ledger, dashboard (videos, billing, settings, redeem codes, invite link, account deletion, data export); billing shows amounts paid and refunded, orders and the ledger load page by page, and every order has a printable detail page (tax invoices come from the payment provider).
   - Orders and generation: partial and full refunds that claw back credits, a generation queue with a dead-letter queue, credits returned automatically on failure.
+    - Try before signing in: the generator keeps the chosen photo, style and length in the browser (IndexedDB, 24 hours) through sign-in and checkout, and tells signed-out visitors their photo is kept and what the cheapest pack covering the chosen length costs. The draft is cleared once a generation is submitted or on sign-out.
+    - Upload from phone: on desktop the generator shows a QR code; the phone opens `/phone-upload` (token only in the URL fragment), picks a photo, and the desktop picks it up within a few seconds. The photo is relayed through R2 under `handoff/` (link valid for 10 minutes, one photo per code, swept by the cron after an hour) and is moderated when the desktop uploads it as usual.
   - Growth: first- and last-touch attribution (UTM and ad click IDs), a visit → sign-up → checkout → paid → generate funnel, GA4 events behind a consent banner, public share pages for videos (opt-in per video, with link previews).
   - Admin: overview (including provider cost and gross margin), users, orders, generations, takedowns, contact messages, payment events, emails, audit log, reports and order CSV, redeem codes, referral leaderboard, runtime settings and connection tests.
     - Users: filter by status, role and paying, sort by sign-up, last login or credits; the detail page shows total paid, generation stats, orders, credit grants, the credit ledger and admin actions on that user (granted credits can have an expiry).
@@ -404,7 +406,7 @@ SANDBOX_PROVIDER=dodo E2E_PORT=3200 npm run test:sandbox   # real test-mode chec
 
 The risk-ranked e2e acceptance catalog and known gaps are in [tests/e2e/CATALOG.md](tests/e2e/CATALOG.md) (in Chinese). Update it when you add or rename a test; `npm test` checks that the two match. For sandbox e2e prerequisites, webhook mode and test cards, see "sandbox e2e" in [docs/payments.md](docs/payments.md) (in Chinese).
 
-e2e coverage (70 tests):
+e2e coverage (76 tests):
 - Purchase and generation: the full main path (including the Chinese site and the AI badge), buying the cheapest covering pack straight from the generator when credits run short (disabled while checkout is paused), failed payment, returning to the result page signed out (the email is removed by a 302 before rendering), insufficient credits, refund on failed generation; three pollers handling the same job concurrently store it once without deleting the video, and the admin shows cost and margin.
 - Compliance:
   - Retention: photos used by in-progress jobs are kept; expired photos can't be reused; expired videos return 410 and show as expired in the dashboard; repeated cleanup is idempotent.
@@ -425,6 +427,7 @@ e2e coverage (70 tests):
 - Security headers: every inline script carries the request's nonce; zero CSP violations across public pages, a signed-in generation and the admin; an injected script without a nonce is reported; report endpoints aren't subject to the same-origin check.
 - Browser error reporting: global errors and unhandled rejections are reported once each without the query string, duplicates aren't re-sent, at most 5 per page; on a render error, the ID on the error page matches the report, and "Try again" recovers once the API is back.
 - Attribution and reports: UTM attribution persists across sessions; reports and CSV.
+- Generator draft and phone upload: a signed-out visitor's photo, style and length survive sign-in and checkout and are cleared once a generation starts; a photo uploaded from the phone page reaches the desktop and the code can't be reused; the phone page rejects a missing token and wrong formats; unknown tokens, disguised files and a second take are refused.
 - SEO: every seo-check rule, hydration of the English and Chinese home pages, head updates after client-side navigation, crawlable language links.
 
 Artifacts go to `.tmp/video-template-e2e/`: `report/` (HTML report with screenshots and traces for every step), `results.json` and `test-results/`.

@@ -15,7 +15,8 @@ import { CSP_REPORT_PATH, summarizeCspReports } from './csp'
 import { exchangeGoogleCode, googleAuthRedirect, googleClientId, googleOAuthConfig, verifyGoogleIdToken } from './google'
 import { publicGeneration, publicOrder, rateLimit, readJson, requireUser, pageParams } from './http'
 import { enqueueJob, failGeneration, handleDeadLetter, handleVideoJob } from './jobs'
-import { jobToken, serveR2Object, sniffImageType, verifyUploadSignature } from './media'
+import { handoffRoutes } from './handoff'
+import { jobToken, readImageFile, readUploadForm, serveR2Object, verifyUploadSignature } from './media'
 import { getModerationProvider } from './moderation'
 import { processPaymentEvent } from './orders'
 import { reconcileOrder, reconcilePendingOrders } from './reconcile'
@@ -242,19 +243,8 @@ app.post('/api/auth/logout', async (c) => {
 app.post('/api/uploads', async (c) => {
   const user = requireUser(c)
   await rateLimit(c.env.UPLOAD_LIMITER, user.id)
-  // 没有 Content-Length（分块上传）时 formData() 会把整个请求体读进内存，直接拒绝；浏览器上传表单总会带长度
-  const header = c.req.header('content-length')
-  if (!header || !/^\d+$/.test(header)) throw new ApiError(411, 'length_required')
-  if (Number(header) > site.upload.maxBytes + 64 * 1024) throw new ApiError(413, 'file_too_large')
-  const form = await c.req.raw.formData().catch(() => null)
-  const file = form?.get('file')
-  if (!file || typeof file === 'string') throw new ApiError(400, 'missing_file')
-  if (file.size > site.upload.maxBytes) throw new ApiError(413, 'file_too_large')
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const contentType = sniffImageType(bytes)
-  if (!contentType || !(site.upload.contentTypes as readonly string[]).includes(contentType)) {
-    throw new ApiError(415, 'unsupported_file_type')
-  }
+  const form = await readUploadForm(c)
+  const { bytes, contentType } = await readImageFile(form)
   // 已下架内容的原图不允许再次上传；审核不通过的不落盘、不扣积分
   const hash = await sha256Hex(bytes)
   if (await isBlockedMedia(c.env, hash)) throw new ApiError(422, 'content_rejected')
@@ -1002,6 +992,7 @@ app.post('/api/dev/backup', async (c) => {
 // ---------- Admin ----------
 
 app.route('/api/admin', adminRoutes)
+app.route('/api/handoff', handoffRoutes)
 app.route('/', seoRoutes)
 
 app.all('/api/*', () => {

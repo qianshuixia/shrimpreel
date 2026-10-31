@@ -6,6 +6,16 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-10-31
 
+### Added: keep the generator draft across sign-in, and upload a photo from a phone
+
+- The generator saves the chosen photo, style and length in IndexedDB (`src/lib/photo-draft.ts`, 24 hours) and restores them after sign-in or checkout. Signed-out visitors with a photo see that it is kept and the price of the cheapest pack covering the chosen length. The draft is cleared after a generation is created and on sign-out.
+- On desktop the generator has a "Photo on your phone? Scan to upload" button that shows a QR code. The phone opens `/phone-upload#<token>`, picks a photo and uploads it to `/api/handoff/photo`; the desktop polls `/api/handoff/take` and gets the photo within a few seconds. Codes last 10 minutes and accept one photo. The relay uses R2 objects under `handoff/` (`src/server/handoff.ts`); the cron deletes them after an hour. Moderation happens when the desktop uploads the photo through `/api/uploads` as before.
+- New dependency `uqr` (QR code matrix). New copy keys: `generator.draftKept`, `generator.guestPrice`, `generator.phone*`, the `phoneUpload` section and `errors.handoff_expired` / `errors.handoff_used`; the privacy policy's storage paragraph mentions the draft and the phone relay.
+
+Upgrading a site: merge upstream and run `npm install`. If `src/content/en.ts` or `zh.ts` conflict, keep the site's values and add the new keys above (typecheck reports missing ones), plus the privacy policy sentence. No vars, secrets or migrations; the `handoff/` prefix in the existing R2 bucket is cleaned by the cron. After deploying, scan the QR code with a real phone once.
+
+新增：生成器草稿跨登录保留，以及手机扫码传图。生成器把选好的照片、风格和时长存进 IndexedDB（`src/lib/photo-draft.ts`，24 小时），登录或付款回来后恢复；未登录且已选照片时，提示照片会保留，并显示够当前时长的最便宜积分包价格；生成任务创建后或退出登录时清除草稿。桌面端生成器新增“照片在手机里？扫码上传”按钮，显示二维码：手机打开 `/phone-upload#<token>` 选图并上传到 `/api/handoff/photo`，桌面轮询 `/api/handoff/take`，几秒内收到。二维码 10 分钟有效、只收一张；中转用 R2 的 `handoff/` 前缀（`src/server/handoff.ts`），cron 一小时后删除。审核仍在桌面照常调用 `/api/uploads` 时做。新增依赖 `uqr`（生成二维码矩阵）。新增文案键：`generator.draftKept`、`generator.guestPrice`、`generator.phone*`、`phoneUpload` 一节和 `errors.handoff_expired` / `errors.handoff_used`；隐私政策“存储与保留”加了草稿和手机中转的说明。站点升级：合并 upstream 后 `npm install`；`src/content/en.ts`、`zh.ts` 冲突时保留站点的值，补上以上新键（typecheck 会报缺的）和隐私政策那句。没有新增 vars、密钥和迁移；现有 R2 桶的 `handoff/` 前缀由 cron 清理。部署后用真手机扫一次码。
+
 ### Changed: the consent banner only asks visitors from the EEA, the UK and Switzerland
 
 - With `ga4Id` or `clarityId` set, the default for analytics cookies now depends on the visitor's country (`cf-ipcountry`). The EEA, the UK, Switzerland and unknown countries (`XX`, `T1`, no header) default to `denied` and see the banner as before. Everywhere else defaults to `granted` without a banner: GA4 loads, Clarity may set its cookies and `vt_attr` is written from the first page view. The footer "Cookie settings" opens the card, which then explains that cookies are on by default and can be rejected. A stored choice always overrides the default.

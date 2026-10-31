@@ -1,4 +1,7 @@
+import type { Context } from 'hono'
+import { site } from '#/config/site'
 import { isWeakSessionSecret } from './config-health'
+import type { AppContext } from './types'
 import { ApiError, base64Url, constantTimeEqual, hmacSha256, isProduction } from './util'
 
 // 生产环境的签名密钥缺失、过短或仍是示例值时拒绝签名，而不是签出可伪造的 URL
@@ -76,4 +79,26 @@ export function sniffImageType(bytes: Uint8Array): 'image/jpeg' | 'image/png' | 
     return 'image/webp'
   }
   return null
+}
+
+// 图片上传的共用校验（/api/uploads 与手机传图 /api/handoff/photo 同一套）：
+// 没有 Content-Length（分块上传）时 formData() 会把整个请求体读进内存，直接拒绝；浏览器上传表单总会带长度
+export async function readUploadForm(c: Context<AppContext>): Promise<FormData | null> {
+  const header = c.req.header('content-length')
+  if (!header || !/^\d+$/.test(header)) throw new ApiError(411, 'length_required')
+  if (Number(header) > site.upload.maxBytes + 64 * 1024) throw new ApiError(413, 'file_too_large')
+  return c.req.raw.formData().catch(() => null)
+}
+
+// 取出 file 字段，按大小和文件头魔数校验，返回字节与嗅探出的类型
+export async function readImageFile(form: FormData | null) {
+  const file = form?.get('file')
+  if (!file || typeof file === 'string') throw new ApiError(400, 'missing_file')
+  if (file.size > site.upload.maxBytes) throw new ApiError(413, 'file_too_large')
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const contentType = sniffImageType(bytes)
+  if (!contentType || !(site.upload.contentTypes as readonly string[]).includes(contentType)) {
+    throw new ApiError(415, 'unsupported_file_type')
+  }
+  return { bytes, contentType }
 }

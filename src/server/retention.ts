@@ -1,6 +1,9 @@
 import { site } from '#/config/site'
 
 const DAY_MS = 86400_000
+// 手机传图中转对象（handoff.ts）：没被取走的最长保留 1 小时
+export const HANDOFF_PREFIX = 'handoff/'
+export const HANDOFF_MAX_AGE_MS = 60 * 60_000
 // D1 单条语句最多绑定 100 个参数；每轮每类最多处理这么多，Cron 每 5 分钟跑一次足够消化
 const BATCH = 90
 
@@ -57,6 +60,24 @@ export async function sweepExpiredMedia(env: Env, options: SweepOptions = {}) {
   }
 
   return { uploads, outputs }
+}
+
+// 删除上传时间超过 HANDOFF_MAX_AGE_MS 的中转对象（没被取走的照片、没人扫的 pending）
+export function expiredHandoffKeys(objects: Array<{ key: string; uploaded: Date }>, now: number) {
+  return objects.filter((o) => now - o.uploaded.getTime() > HANDOFF_MAX_AGE_MS).map((o) => o.key)
+}
+
+export async function sweepHandoff(env: Env, now = Date.now()) {
+  let removed = 0
+  let cursor: string | undefined
+  do {
+    const listed = await env.MEDIA.list({ prefix: HANDOFF_PREFIX, cursor })
+    const keys = expiredHandoffKeys(listed.objects, now)
+    if (keys.length) await env.MEDIA.delete(keys)
+    removed += keys.length
+    cursor = listed.truncated ? listed.cursor : undefined
+  } while (cursor)
+  return removed
 }
 
 // 成片的可下载截止时间；未成功、已过期或不自动删除时为 null

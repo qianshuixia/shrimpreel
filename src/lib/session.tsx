@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api, errorCode, type ClientConfig, type PublicUser } from './api'
 import { CONSENT_REQUIRED } from './consent'
 import { captureAttribution, track } from './attribution'
+import { clearDraft } from './photo-draft'
 
 type SessionState = {
   user: PublicUser | null
@@ -34,6 +35,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await api('/api/auth/logout', { method: 'POST', json: {} })
     setUser(null)
+    // 共用电脑：退出登录时一并清掉还没用的照片草稿
+    await clearDraft()
   }, [])
 
   useEffect(() => {

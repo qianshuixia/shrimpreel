@@ -233,6 +233,17 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 - `settings.spec.ts` › `后台运营设置页：只提交改动项、显示修改人、恢复默认；测试连接逐项给出结果并记审计`
   - 确认框列出改动前后值；保存后显示修改人，恢复默认后显示“使用默认值”；本地 6 项测试连接都是“正常”，发信项给管理员发了测试邮件，每次测试记一条 `probe.run` 审计。
 
+## P1 生成器草稿与手机传图
+
+- `phone-upload.spec.ts` › `访客草稿跨登录和付款保留：照片、风格、时长、授权都恢复，生成开始后草稿清除`
+  - 访客选照片、非默认风格和时长、勾授权后看到“登录后会保留”和这次视频的价格提示；本地登录跳转回来后四项都恢复，就地买包付款回到 `/#create` 后照片仍在；生成成功后刷新，生成器里没有照片。
+- `phone-upload.spec.ts` › `扫码用手机上传：手机传图后桌面面板关闭并选中照片，同一二维码不能再用；手机视口不显示入口`
+  - 桌面面板的链接带 fragment token；另一个手机视口的 context 打开链接上传，桌面 2 秒轮询取到后面板关闭、照片已选；同一 token 再传显示“已用过”；手机视口不显示入口。
+- `phone-upload.spec.ts` › `手机上传页：没有 token 提示扫码；格式不对在手机上就被拦下`
+  - 没有 token 只提示去电脑扫码；GIF 在手机上预检就被拒绝。
+- `phone-upload.spec.ts` › `手机传图接口边界：未知 token、伪装成图片的文本、一次性取走`
+  - 未知 token 的 photo 和 take 都是 410；等待中 take 返回 204；文本冒充 JPEG 返回 415 且二维码仍可用；成功后再传返回 409；take 返回原图字节且 `no-store`，再 take 是 410。
+
 ## 部署后巡检（tests/smoke）
 
 `npm run test:smoke` 对线上地址只读巡检（运行方法见 README 的“部署后巡检”），覆盖 e2e 无法覆盖的线上开关：
@@ -282,6 +293,7 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 - 登录：Google 授权码流程的 PKCE 与 nonce、One Tap 的 nonce（`google.test.ts`）；账号以 Google `sub` 为准、注销过的邮箱重新注册不发赠送（`auth.test.ts`）。
 - 成片下载：服务商返回的成片超过大小上限时不写 R2，没有 Content-Length 时边读边计数（`output-download.test.ts`）。
 - 运维：D1 导出的 SQL 转义与备份文件命名（`backup.test.ts`）；付款即时通知按 webhook 地址识别 Telegram、飞书、Discord，报错里不带地址（`chat-notify.test.ts`）。
+- 手机传图的中转清理：只删上传超过 1 小时的 `handoff/` 对象，分页列出（`handoff.test.ts`）。
 - 其他：告警阈值与时间桶（`alerts.test.ts`）、归因解析与 CSV 公式注入（`attribution.test.ts`）、归因 Cookie 在同意后才写入、拒绝时删除（`attribution-consent.test.ts`）、GA4 同意与撤回（`consent.test.ts`）、错误与 CSP 报告的脱敏（`client-error.test.ts`、`csp.test.ts`）。
 
 ## 未覆盖

@@ -1,12 +1,14 @@
 import { useRouterState } from '@tanstack/react-router'
-import { CircleAlert, CircleCheck, Download, Upload } from 'lucide-react'
+import { CircleAlert, CircleCheck, Download, Smartphone, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { STYLES, cheapestPackageCovering, defaultStyle, formatPrice, site } from '#/config/site'
 import { api, errorCode, isActiveGeneration, type Generation } from '#/lib/api'
 import { track } from '#/lib/attribution'
 import { useCheckout } from '#/lib/checkout'
 import { useContent, useLocale, useLocalePath } from '#/lib/i18n'
+import { clearDraft, loadDraft, saveDraft } from '#/lib/photo-draft'
 import { signInHref, useSession } from '#/lib/session'
+import { PhoneUploadPanel } from './PhoneUploadPanel'
 import { AiBadge, ErrorText, GoogleIcon, LocalLink, Spinner, formatDate } from './ui'
 
 type Photo = { file: File; previewUrl: string; uploadId: string | null }
@@ -33,16 +35,56 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generation, setGeneration] = useState<Generation | null>(null)
+  const [phoneOpen, setPhoneOpen] = useState(false)
+  const rootRef = useRef<HTMLElement>(null)
+  const photoRef = useRef<Photo | null>(null)
+  photoRef.current = photo
+  // 最近一次写进草稿的内容：恢复草稿后不重复写（否则每次访问都会把 24 小时重新计时），生成成功后不再写
+  const draftRef = useRef<{ file: File; styleId: string; durationId: string; consent: boolean } | null>(null)
+  const draftClearedRef = useRef<File | null>(null)
 
   const checkout = useCheckout()
   const duration = site.durations.find((d) => d.id === durationId) ?? site.durations[0]!
   const shortfall = user ? Math.max(0, duration.credits - user.credits) : 0
   // 余额不足时直接在这里下单够用的最便宜积分包；没有够用的包就退回去价格页
   const coverPack = shortfall > 0 ? cheapestPackageCovering(shortfall) : undefined
+  // 访客也先看到这个视频要多少积分、最便宜的够用的包多少钱
+  const guestPack = !user ? cheapestPackageCovering(duration.credits) : undefined
 
   useEffect(() => () => {
     if (photo) URL.revokeObjectURL(photo.previewUrl)
   }, [photo])
+
+  // 挂载时（只在客户端）恢复登录或付款跳转前保存的草稿：照片、风格、时长、授权勾选
+  useEffect(() => {
+    let cancelled = false
+    void loadDraft().then((draft) => {
+      if (cancelled || !draft || photoRef.current) return
+      const file = new File([draft.file], draft.name, { type: draft.type })
+      const nextStyle = STYLES.some((s) => s.id === draft.styleId) ? draft.styleId : styleId
+      const nextDuration = site.durations.some((d) => d.id === draft.durationId) ? draft.durationId : durationId
+      draftRef.current = { file, styleId: nextStyle, durationId: nextDuration, consent: draft.consent === true }
+      setPhoto({ file, previewUrl: URL.createObjectURL(file), uploadId: null })
+      if (nextStyle !== styleId) selectStyle(nextStyle)
+      setDurationId(nextDuration)
+      setConsent(draft.consent === true)
+      rootRef.current?.scrollIntoView({ block: 'start' })
+    })
+    return () => {
+      cancelled = true
+    }
+    // 只在挂载时恢复一次
+  }, [])
+
+  // 有照片时，照片、风格、时长、授权勾选的变化都写进草稿
+  const photoFile = photo?.file
+  useEffect(() => {
+    if (!photoFile || draftClearedRef.current === photoFile) return
+    const last = draftRef.current
+    if (last && last.file === photoFile && last.styleId === styleId && last.durationId === durationId && last.consent === consent) return
+    draftRef.current = { file: photoFile, styleId, durationId, consent }
+    void saveDraft({ file: photoFile, name: photoFile.name, type: photoFile.type, styleId, durationId, consent })
+  }, [photoFile, styleId, durationId, consent])
 
   // 轮询当前任务直到结束；结束后刷新余额（失败时积分已退回）
   useEffect(() => {
@@ -98,6 +140,8 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
       if (!photo.uploadId) setPhoto({ ...photo, uploadId })
       const data = await api<{ generation: Generation }>('/api/generations', { json: { uploadId, durationId, styleId, locale } })
       track('generate_video', { style_id: styleId, duration_id: durationId, credits: data.generation.creditsCost })
+      draftClearedRef.current = photo.file
+      await clearDraft()
       setGeneration(data.generation)
       await refresh()
     } catch (err) {
@@ -117,6 +161,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
 
   return (
     <section
+      ref={rootRef}
       className="card space-y-5 p-5 shadow-[0_1px_0_var(--line),0_20px_40px_-24px_rgba(0,0,0,0.25)] sm:p-6"
       aria-labelledby="generator-title"
       data-testid="generator"
@@ -182,6 +227,23 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
           )}
         </button>
         <p className="text-xs leading-5 text-muted">{g.guidance}</p>
+        {/* 桌面访客的照片多半在手机上：扫码传到这里；手机本身不需要 */}
+        {phoneOpen ? (
+          <PhoneUploadPanel
+            onPhoto={(file) => void selectFile(file)}
+            onClose={() => setPhoneOpen(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setPhoneOpen(true)}
+            className="btn-ghost hidden px-3 py-1.5 text-xs md:inline-flex"
+            data-testid="phone-upload-open"
+          >
+            <Smartphone className="size-4" /> {g.phoneOpen}
+          </button>
+        )}
       </section>
 
       {/* 2. 风格：只有一种风格时不显示 */}
@@ -307,6 +369,16 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
             {g.ctaGenerate(duration.credits)}
           </button>
         )}
+        {!loading && !user && photo ? (
+          <p className="text-center text-xs text-muted" data-testid="generator-draft-kept">
+            {g.draftKept}
+          </p>
+        ) : null}
+        {guestPack && !loading ? (
+          <p className="text-center text-xs text-muted" data-testid="generator-guest-price">
+            {g.guestPrice(duration.credits, formatPrice(guestPack.priceCents, guestPack.currency))}
+          </p>
+        ) : null}
         {user ? (
           <p className="text-center text-xs text-muted" data-testid="generator-balance">
             {g.balance(user.credits)}
