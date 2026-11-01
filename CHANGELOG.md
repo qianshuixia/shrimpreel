@@ -6,6 +6,14 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-11-01
 
+### Added: optional style demo and FAQ on article pages
+
+- An article in `site.articles` can set `style` (a `styles[].id`): the page then shows that style's original and AI sample videos after the intro, and the closing button links to `/?style=<id>#create` so the style is preselected. An unknown id is ignored. An article's content can set `faq: [{ q, a }]`: the page renders a collapsible FAQ after the body and adds FAQPage JSON-LD. `howTo` in the template uses both. New copy keys `guides.styleDemo` and `guides.faqTitle`; the home FAQ list is now the shared `FaqList` component with the same output.
+
+Upgrading a site: merge upstream. Nothing to change; to use it, add `style` / `faq` to an article, and add `guides.styleDemo` / `guides.faqTitle` to your `en.ts` and `zh.ts` if the merge conflicts there.
+
+新增：文章页可选的风格样片和 FAQ。`site.articles` 里的文章可以填 `style`（`styles[].id`）：页面在导语后显示该风格的原片和 AI 样片，文末按钮链接到 `/?style=<id>#create` 预选风格，id 不存在就忽略。文章 content 可以填 `faq: [{ q, a }]`：正文后渲染折叠问答并输出 FAQPage JSON-LD。模板的 `howTo` 两项都用了。新增文案键 `guides.styleDemo`、`guides.faqTitle`；首页 FAQ 列表改用共用的 `FaqList` 组件，输出不变。站点升级：合并 upstream 即可，无需改动；想用就在文章上加 `style` / `faq`，合并时 `en.ts`、`zh.ts` 若冲突，保留站点的文案并补上这两个键。
+
 ### Fixed: the phone upload countdown no longer depends on the computer's clock
 
 - `POST /api/handoff` also returns `expiresInMs`, and the QR panel counts down from the moment the response arrives. It used to subtract the computer's clock from the server's `expiresAt`, so a clock that was a few seconds off showed more than 10:00 or marked the code expired early and stopped polling.

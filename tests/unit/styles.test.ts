@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LOCALES, STYLES, defaultStyle, findStyle, site } from '#/config/site'
+import { ARTICLES, LOCALES, STYLES, defaultStyle, findStyle, site } from '#/config/site'
 import { loadContent } from '#/lib/i18n'
 
 // 风格配置的一致性：加风格时漏掉文案、源视频或 id 重复，在这里就能发现
@@ -32,6 +32,12 @@ describe('site.styles', () => {
         expect(copy?.name, `${locale}/${style.id}`).toBeTruthy()
         expect(copy?.tagline, `${locale}/${style.id}`).toBeTruthy()
       }
+    }
+  })
+
+  it('文章绑定的 style 必须是存在的风格 id', () => {
+    for (const article of ARTICLES) {
+      if (article.style !== undefined) expect(findStyle(article.style), `${article.key}.style = ${article.style}`).toBeTruthy()
     }
   })
 })

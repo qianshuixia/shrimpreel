@@ -1,7 +1,11 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
+import { Sparkles } from 'lucide-react'
 import { ArticleCards } from '#/components/ArticleCards'
+import { faqJsonLd, FaqList } from '#/components/Faq'
 import { Breadcrumbs, formatDay } from '#/components/ui'
-import { findArticle, relatedArticles, site } from '#/config/site'
+import { VideoCard } from '#/components/VideoCard'
+import { findArticle, findStyle, relatedArticles, site } from '#/config/site'
+import type { ArticleContent } from '#/content/en'
 import { absoluteUrl, getContent, localeFromParam, pageHead, useContent, useLocale, useLocalePath } from '#/lib/i18n'
 import { articleJsonLd, breadcrumbJsonLd, jsonLdScript } from '#/lib/seo'
 
@@ -20,7 +24,7 @@ export const Route = createFileRoute('/{-$locale}/$slug')({
     const { article } = loaderData
     const locale = localeFromParam(params.locale)
     const c = getContent(locale)
-    const text = c.articles[article.key]
+    const text: ArticleContent = c.articles[article.key]
     const path = `/${article.slug}`
     const head = pageHead(locale, path, `${text.title} | ${site.brandName}`, text.description)
     return {
@@ -43,6 +47,7 @@ export const Route = createFileRoute('/{-$locale}/$slug')({
       scripts: [
         jsonLdScript(articleJsonLd(locale, path, text, article)),
         jsonLdScript(breadcrumbJsonLd(locale, c.meta.breadcrumbHome, breadcrumbItems(c, text.title, path))),
+        ...(text.faq?.length ? [jsonLdScript(faqJsonLd(text.faq))] : []),
       ],
     }
   },
@@ -61,7 +66,9 @@ function ArticlePage() {
   const c = useContent()
   const locale = useLocale()
   const lp = useLocalePath()
-  const text = c.articles[article.key]
+  const text: ArticleContent = c.articles[article.key]
+  // style 填了不存在的 id 就当没填
+  const style = article.style ? findStyle(article.style) : undefined
   const related = relatedArticles(article)
   return (
     <article className="container-page max-w-3xl py-16">
@@ -81,6 +88,29 @@ function ArticlePage() {
         />
       ) : null}
       <p className="mt-6 text-xl leading-9 text-muted">{text.intro}</p>
+      {style ? (
+        <section className="mt-8" aria-labelledby="style-demo" data-testid="article-style-demo">
+          <h2 id="style-demo" className="mb-4 font-display text-2xl">
+            {c.guides.styleDemo}
+          </h2>
+          <div className="mx-auto grid max-w-md grid-cols-3 gap-3 sm:gap-4">
+            <VideoCard video={style.examples.original.video} poster={style.examples.original.poster} label={c.hero.original} credit={style.examples.original.credit} />
+            {style.examples.aiVersions.map((v) => (
+              <VideoCard
+                key={v.video}
+                video={v.video}
+                poster={v.poster}
+                credit={v.credit}
+                label={
+                  <>
+                    <Sparkles className="size-3" /> {c.hero.aiVersion}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
       <div className="prose-article mt-6">
         {text.sections.map((section) => (
           <section key={section.h}>
@@ -91,9 +121,17 @@ function ArticlePage() {
           </section>
         ))}
       </div>
+      {text.faq?.length ? (
+        <section className="mt-12" aria-labelledby="article-faq" data-testid="article-faq">
+          <h2 id="article-faq" className="mb-4 font-display text-3xl">
+            {c.guides.faqTitle}
+          </h2>
+          <FaqList items={text.faq} />
+        </section>
+      ) : null}
       <div className="card mt-12 flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="font-display text-2xl">{c.finalCta.title}</p>
-        <a href={`${lp('/')}#create`} className="btn-primary shrink-0">
+        <a href={`${lp('/')}${style ? `?style=${style.id}` : ''}#create`} className="btn-primary shrink-0">
           {c.finalCta.cta}
         </a>
       </div>
