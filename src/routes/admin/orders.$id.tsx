@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { AdminPage, LoadState, Status, money, shortDate, useAdminData } from '#/components/admin'
-import { OrderActions, orderStatus, type AdminOrder } from '#/components/admin-orders'
+import { DISPUTE_LABEL, OrderActions, orderStatus, type AdminOrder } from '#/components/admin-orders'
 
 export const Route = createFileRoute('/admin/orders/$id')({
   component: AdminOrderDetail,
@@ -81,6 +81,18 @@ function AdminOrderDetail() {
               <dd data-testid="admin-order-refunded">
                 {money(o.refunded_amount_cents, paidCurrency)} · {o.refunded_credits} 积分
               </dd>
+              {o.dispute_status ? (
+                <>
+                  <dt className="text-muted">争议</dt>
+                  <dd data-testid="admin-order-dispute">
+                    {DISPUTE_LABEL[o.dispute_status]}
+                    <span className="ml-2 font-mono text-xs text-muted">{o.dispute_id}</span>
+                    <span className="block text-xs text-muted">
+                      {shortDate(o.disputed_at)} · 开启时回收 {o.dispute_credits} 积分
+                    </span>
+                  </dd>
+                </>
+              ) : null}
               <dt className="text-muted">支付商</dt>
               <dd className="font-mono text-xs">
                 {o.provider}

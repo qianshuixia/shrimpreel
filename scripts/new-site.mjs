@@ -202,7 +202,8 @@ console.log(`
    npx wrangler r2 bucket lifecycle add ${name}-media expire-uploads uploads/ --expire-days 8
    npx wrangler r2 bucket lifecycle add ${name}-media expire-outputs outputs/ --expire-days 31
 4. wrangler.jsonc vars：APP_ENV=production、SITE_URL=https://${domain}、PAYMENT_PROVIDER、VIDEO_PROVIDER、
-   MODERATION_PROVIDER=openai（生产禁止 mock，否则上传一律 503）、TURNSTILE_SITE_KEY、ADMIN_EMAILS、GOOGLE_CLIENT_ID。
+   MODERATION_PROVIDER=openai（生产禁止 mock，否则上传一律 503）、
+   OUTPUT_MODERATION=frames（成片抽帧审核，需先加 media 绑定 MEDIA_TRANSFORM，见 docs/env.md）、TURNSTILE_SITE_KEY、ADMIN_EMAILS、GOOGLE_CLIENT_ID。
    密钥：除支付与视频密钥外，再 secret put OPENAI_API_KEY、TURNSTILE_SECRET_KEY。
    交易邮件：Dashboard → Compute > Email Service → Onboard Domain 添加 ${domain}（DNS 须托管在 Cloudflare）；
    发给任意收件人需 Workers Paid。EMAIL_FROM 已改为 noreply@${domain}；ADMIN_EMAILS 同时接收举报、留言提醒和系统告警。

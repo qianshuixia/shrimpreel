@@ -17,6 +17,7 @@ function ready(overrides: { vars?: Record<string, string>; secrets?: ConfigInput
       PAYMENT_PROVIDER: 'waffo',
       VIDEO_PROVIDER: 'fal',
       MODERATION_PROVIDER: 'openai',
+      OUTPUT_MODERATION: 'frames',
       ADMIN_EMAILS: 'ops@moonhop.ai',
       EMAIL_FROM: 'noreply@mail.moonhop.ai',
       WAFFO_ENVIRONMENT: 'prod',
@@ -36,7 +37,7 @@ function ready(overrides: { vars?: Record<string, string>; secrets?: ConfigInput
       RESEND_API_KEY: 're_x',
       ...overrides.secrets,
     },
-    bindings: REQUIRED_BINDINGS,
+    bindings: [...REQUIRED_BINDINGS, 'MEDIA_TRANSFORM'],
     packageIds: ['starter', 'party'],
     siteDomain: 'moonhop.ai',
   }
@@ -69,6 +70,18 @@ describe('checkConfig', () => {
       vars: { APP_ENV: 'development', SITE_URL: 'http://localhost:3000', PAYMENT_PROVIDER: 'mock', VIDEO_PROVIDER: 'mock', MODERATION_PROVIDER: 'mock' },
     })
     expect(keys(input)).toEqual(['error:APP_ENV', 'error:SITE_URL', 'error:PAYMENT_PROVIDER', 'error:VIDEO_PROVIDER', 'error:MODERATION_PROVIDER'])
+  })
+
+  it('成片输出审核：frames 要有 MEDIA_TRANSFORM 绑定；off 在有输入审核时警告；mock 和未知值报错', () => {
+    expect(checkConfig({ ...ready(), bindings: REQUIRED_BINDINGS })).toEqual([expect.objectContaining({ level: 'error', key: 'OUTPUT_MODERATION', message: expect.stringContaining('MEDIA_TRANSFORM') })])
+    expect(keys(ready({ vars: { OUTPUT_MODERATION: 'off' } }))).toEqual(['warn:OUTPUT_MODERATION'])
+    // 没配置等同 off（合并模板前的站点）
+    expect(keys(ready({ vars: { OUTPUT_MODERATION: '' } }))).toEqual(['warn:OUTPUT_MODERATION'])
+    // 输入审核本来就是 none 时，off 不再重复警告
+    expect(keys(ready({ vars: { OUTPUT_MODERATION: 'off', MODERATION_PROVIDER: 'none' } }))).toEqual(['warn:MODERATION_PROVIDER'])
+    expect(keys(ready({ vars: { MODERATION_PROVIDER: 'none' } }))).toEqual(['warn:MODERATION_PROVIDER', 'warn:OUTPUT_MODERATION'])
+    expect(keys(ready({ vars: { OUTPUT_MODERATION: 'mock' } }))).toEqual(['error:OUTPUT_MODERATION'])
+    expect(keys(ready({ vars: { OUTPUT_MODERATION: 'all' } }))).toEqual(['error:OUTPUT_MODERATION'])
   })
 
   it('商品映射缺包或不是 JSON 对象、生产仍用 test 店铺、预发用正式店铺', () => {
@@ -122,7 +135,7 @@ describe('checkConfig', () => {
       'error:EMAIL_FROM',
     ])
     expect(keys(ready({ vars: { ADMIN_EMAILS: ' , ', EMAIL_FROM: 'noreply@other.ai' } }))).toEqual(['error:ADMIN_EMAILS', 'warn:EMAIL_FROM'])
-    expect(checkConfig({ ...ready(), bindings: ['DB', 'MEDIA'] })).toEqual([
+    expect(checkConfig({ ...ready(), bindings: ['DB', 'MEDIA', 'MEDIA_TRANSFORM'] })).toEqual([
       expect.objectContaining({ key: 'bindings', message: expect.stringContaining('KV、VIDEO_QUEUE') }),
     ])
   })
@@ -171,6 +184,8 @@ describe('doctor', () => {
     kv_namespaces: [{ binding: 'KV', id: '9f8e7d6c5b4a39281706f5e4d3c2b1a0' }],
     routes: [{ pattern: 'moonhop.ai', custom_domain: true }],
     workers_dev: false,
+    // 模板默认不声明 Media 绑定；这里模拟站点启用了 OUTPUT_MODERATION=frames
+    media: { binding: 'MEDIA_TRANSFORM' },
   })
   const allSecrets = Object.keys(ready().secrets)
   const doctorKeys = (config: Record<string, any>, options: Parameters<typeof runDoctor>[1] = {}) =>

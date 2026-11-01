@@ -7,6 +7,7 @@ import { minorToDisplay } from './amount'
 import type {
   CheckoutInput,
   CheckoutResult,
+  DisputeStage,
   PaidLookup,
   PaymentEvent,
   PaymentProvider,
@@ -209,6 +210,31 @@ export function normalizeDodoEvent(payload: Record<string, unknown>): PaymentEve
         refundAmountCents: data.is_partial === true ? int(data.amount) : null,
         originalAmountCents: null,
       }
+    // 争议（拒付）：data 是 Dispute 对象，字段 dispute_id、payment_id、amount（字符串，文档没写单位，所以不当作分使用）、
+    // dispute_stage（pre_dispute / dispute / pre_arbitration）、reason。
+    // opened 回收积分；won 补回；lost / accepted（商户接受，资金退回持卡人）/ expired（超时未回应）记为失败；
+    // cancelled（持卡人撤销，资金留在商户）按 closed 补回；challenged（已提交证据）不改变资金，忽略
+    // https://docs.dodopayments.com/developer-resources/webhooks/intents/dispute
+    case 'dispute.opened':
+    case 'dispute.won':
+    case 'dispute.lost':
+    case 'dispute.accepted':
+    case 'dispute.expired':
+    case 'dispute.cancelled': {
+      const disputeId = str(data.dispute_id)
+      if (!disputeId) return { kind: 'ignored', eventId, eventType }
+      return {
+        kind: 'disputed',
+        eventId,
+        eventType,
+        orderId,
+        providerPaymentId: str(data.payment_id),
+        disputeId,
+        stage: DODO_DISPUTE_STAGE[eventType]!,
+        amountCents: null,
+        reason: str(data.reason) ?? str(data.remarks),
+      }
+    }
     default:
       // 订阅事件的 data 是完整的订阅对象，各类事件统一按其中的状态处理
       // https://docs.dodopayments.com/developer-resources/subscription-integration-guide
@@ -231,6 +257,15 @@ export function normalizeDodoEvent(payload: Record<string, unknown>): PaymentEve
       }
       return { kind: 'ignored', eventId, eventType }
   }
+}
+
+const DODO_DISPUTE_STAGE: Record<string, DisputeStage> = {
+  'dispute.opened': 'opened',
+  'dispute.won': 'won',
+  'dispute.lost': 'lost',
+  'dispute.accepted': 'lost',
+  'dispute.expired': 'lost',
+  'dispute.cancelled': 'closed',
 }
 
 // on_hold：续费扣款失败，等买家更新付款方式；paused 不改本地状态（不续费也不终止，模板不主动暂停）

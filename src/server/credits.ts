@@ -13,6 +13,8 @@ export type LedgerReason =
   | 'generation'
   | 'generation_refund'
   | 'order_refund'
+  | 'dispute'
+  | 'dispute_won'
   | 'admin_adjust'
   | 'account_deleted'
   | 'expire'

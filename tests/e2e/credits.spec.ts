@@ -43,7 +43,7 @@ test('积分批次：先扣快到期的补发积分，失败原路退回，到�
     // 生成 short 档：先扣到期的补发积分，再扣购买的 1；失败后原路退回
     const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(user), 201)
     const { generation } = await json<{ generation: Generation }>(
-      post(user, '/api/generations', { uploadId: upload.id, durationId: 'short', mockOutcome: 'fail' }),
+      post(user, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short', mockOutcome: 'fail' }),
       201,
     )
     expect(await credits(user)).toBe(STARTER + BONUS - SHORT)
@@ -101,7 +101,7 @@ test('并发扣费：余额只够一次时同时发起两个生成，一个成�
   expect(await credits(request)).toBe(balance)
 
   const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
-  const body = { uploadId: upload.id, durationId: 'full', mockOutcome: 'hang' }
+  const body = { consent: true, uploadId: upload.id, durationId: 'full', mockOutcome: 'hang' }
   const results = await Promise.all([post(request, '/api/generations', body), post(request, '/api/generations', body)])
   expect(results.map((r) => r.status()).sort()).toEqual([201, 402])
   expect(await credits(request)).toBe(balance - FULL)

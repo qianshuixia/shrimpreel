@@ -6,6 +6,35 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-11-01
 
+### Added: machine-readable AI label, verify page, output moderation, consent records and dispute handling
+
+- **AI label in the file**: before a video is marked ready, the queue appends an XMP packet to the MP4 (top-level `uuid` box) with IPTC `DigitalSourceType = trainedAlgorithmicMedia`, the brand, model, video id, creation time and verify URL (`src/lib/xmp.ts`, `src/server/xmp.ts`). New public page `/verify` (footer link) reads a file in the browser without uploading it; `GET /api/verify/:id` returns only the brand, creation time and model. Behind the site switch `site.aiMetadata.enabled`, **off by default**: when off, videos are untouched and `/verify`, the API, the footer link, the sitemap entry and the XMP sentence in the terms are gone (404). For the EU AI Act Art. 50(2) (systems already on the market have until 2026-12-02); California SB 942 only covers providers with over 1 million monthly visitors. C2PA and watermarks are still not included.
+- **Output moderation**: new var `OUTPUT_MODERATION` (`off` by default, `frames`, `mock` outside production). `frames` samples 3 frames through the Cloudflare Media Transformations binding `MEDIA_TRANSFORM` and checks them with `MODERATION_PROVIDER`; a rejected video is deleted, the job fails with `output_moderation_rejected` and credits are refunded. The binding isn't declared by default because it only runs remotely in local dev.
+- **Consent record**: `POST /api/generations` requires `consent: true` (400 `consent_required`) and stores `consent_at` and the consent text shown (migration `0016_consent_record.sql`). The takedown form has a required electronic signature (`signature`, shown in `/admin/takedowns`); the `report.name` label is now just "full name". The privacy policy has a "Children" section (not for under-13s).
+- **Disputes and chargebacks**: Stripe `charge.dispute.created` / `closed` and `radar.early_fraud_warning.created`, and Dodo `dispute.*`, are processed by `processPaymentEvent`. Opening claws back the order's remaining credits (`dispute:<id>`), won or withdrawn gives them back (`dispute_won:<id>`), lost marks the order refunded; an actionable early fraud warning only notifies admins by default (they refund in the admin), and refunds the rest through the provider automatically only when the site switch `site.fraudWarningAutoRefund` is `true`. Admins get an `admin_dispute` email and chat notification; admin orders show the status (migration `0017_disputes.sql`). Waffo has no dispute webhook.
+
+Upgrading a site: merge upstream, then
+1. `npm run db:migrate:local`, and `npm run db:migrate:remote` before deploying (0016, 0017).
+2. Copy: if `en.ts` / `zh.ts` conflict, keep your copy and add the new keys `meta.verifyTitle`, `meta.verifyDescription`, `footer.verify`, the `verify` section, `report.signature`, `errors.consent_required`, the updated `errors.invalid_report`, and the "Children" section of the privacy policy; the XMP sentence in the terms' "Generated videos" paragraph is now conditional on `s.aiMetadata.enabled`. If your `report.name` label says it serves as the signature, change it to just the name.
+3. Webhooks: Stripe `node scripts/stripe-setup.mjs --apply --webhook <url> --webhook-id <id>`, Dodo the same with `dodo-setup.mjs`, or tick the new events in the dashboard (list in `docs/payments.md`, "争议与拒付").
+4. Optional output moderation: add `"media": { "binding": "MEDIA_TRANSFORM" }` to `wrangler.jsonc`, set `OUTPUT_MODERATION` to `frames` and keep `MODERATION_PROVIDER=openai`. Media Transformations includes 5,000 transformations a month, then $0.50 per thousand; each video uses 3.
+5. Custom clients calling `POST /api/generations` must send `consent: true`.
+6. If `src/config/site.ts` conflicts, add the two new keys `aiMetadata: { enabled: false as boolean }` and `fraudWarningAutoRefund: false as boolean`. Sites with EU users should turn `aiMetadata.enabled` on.
+
+新增：成片机器可读 AI 标记、验证页、输出审核、同意记录和支付争议处理。
+- **成片内的 AI 标记（站点开关，默认关闭）**：成片标记完成前，队列在 MP4 末尾追加 XMP（顶层 `uuid` box），写入 IPTC `DigitalSourceType = trainedAlgorithmicMedia`、品牌、模型、视频 ID、生成时间和验证地址（`src/lib/xmp.ts`、`src/server/xmp.ts`）。新增公开页 `/verify`（页脚入口），在浏览器本地读取文件、不上传；`GET /api/verify/:id` 只返回品牌、生成时间和模型。由站点开关 `site.aiMetadata.enabled` 控制，**默认关闭**：关闭时成片保持原样，`/verify`、接口、页脚入口、sitemap 条目和服务条款里关于 XMP 的句子都不出现（返回 404）。依据是欧盟 AI Act 第 50(2) 条（已上市系统宽限到 2026-12-02）；加州 SB 942 只约束月访问量超过 100 万的服务商。C2PA 和水印仍未接入。
+- **成片输出审核**：新增 var `OUTPUT_MODERATION`（默认 `off`，可选 `frames`，非生产可用 `mock`）。`frames` 经 Cloudflare Media Transformations 绑定 `MEDIA_TRANSFORM` 抽 3 帧交给 `MODERATION_PROVIDER`；不通过就删除成片，任务以 `output_moderation_rejected` 失败并退积分。绑定默认不声明，因为本地 dev 里它只能 remote 运行。
+- **同意记录**：`POST /api/generations` 必须带 `consent: true`（否则 400 `consent_required`），并保存 `consent_at` 和当时展示的同意文案（迁移 `0016_consent_record.sql`）。举报表单新增必填的电子签名（`signature`，`/admin/takedowns` 可见）；`report.name` 的 label 改为只写“全名”。隐私政策新增“儿童”一节（不面向 13 岁以下）。
+- **支付争议与拒付**：Stripe 的 `charge.dispute.created` / `closed`、`radar.early_fraud_warning.created` 和 Dodo 的 `dispute.*` 由 `processPaymentEvent` 处理。争议开启时回收订单剩余积分（`dispute:<id>`），胜诉或撤销时补回（`dispute_won:<id>`），败诉时订单记为已退款；可处理的欺诈预警默认只通知管理员、由管理员在后台退款，站点开关 `site.fraudWarningAutoRefund` 为 `true` 时才经支付商自动退掉剩余金额。管理员收到 `admin_dispute` 邮件和群通知，后台订单显示争议状态（迁移 `0017_disputes.sql`）。Waffo 没有争议 webhook。
+
+站点升级：合并 upstream，然后
+1. `npm run db:migrate:local`；部署前运行 `npm run db:migrate:remote`（0016、0017）。
+2. 文案：`en.ts`、`zh.ts` 若冲突，保留站点文案，补上新键 `meta.verifyTitle`、`meta.verifyDescription`、`footer.verify`、`verify` 分区、`report.signature`、`errors.consent_required`、改过的 `errors.invalid_report`，以及隐私政策的“儿童”一节；服务条款“生成的视频”里关于 XMP 的句子改为按 `s.aiMetadata.enabled` 条件出现。站点的 `report.name` label 如果写着“作为电子签名”，改成只写全名。
+3. webhook：Stripe 运行 `node scripts/stripe-setup.mjs --apply --webhook <url> --webhook-id <id>`，Dodo 用 `dodo-setup.mjs` 同样操作，或在支付商后台勾选新事件（清单见 `docs/payments.md` 的“争议与拒付”）。
+4. 可选的输出审核：在 `wrangler.jsonc` 加 `"media": { "binding": "MEDIA_TRANSFORM" }`，把 `OUTPUT_MODERATION` 设为 `frames`，`MODERATION_PROVIDER` 保持 `openai`。Media Transformations 每月含 5000 次，超出每千次 $0.50；每条成片用 3 次。
+5. 自己调用 `POST /api/generations` 的客户端必须带 `consent: true`。
+6. `src/config/site.ts` 合并冲突时，补上两个新键 `aiMetadata: { enabled: false as boolean }` 和 `fraudWarningAutoRefund: false as boolean`；面向欧盟用户的站点建议开启 `aiMetadata.enabled`。
+
 ### Added: optional style demo and FAQ on article pages
 
 - An article in `site.articles` can set `style` (a `styles[].id`): the page then shows that style's original and AI sample videos after the intro, and the closing button links to `/?style=<id>#create` so the style is preselected. An unknown id is ignored. An article's content can set `faq: [{ q, a }]`: the page renders a collapsible FAQ after the body and adds FAQPage JSON-LD. `howTo` in the template uses both. New copy keys `guides.styleDemo` and `guides.faqTitle`; the home FAQ list is now the shared `FaqList` component with the same output.

@@ -167,6 +167,17 @@ export const site = {
     enabled: true,
   },
 
+  // 成片机器可读 AI 标记：开启后成片末尾写入 XMP 元数据（生成方、模型、创建时间、视频 ID），并提供 /verify 验证页和 GET /api/verify/:id。
+  // 欧盟 AI Act 第 50(2) 条要求面向欧盟用户的 AI 生成内容带机器可读标记；加州 SB 942 只约束月访问量超过 100 万的服务商。
+  // 默认关闭，由站点按受众决定；关闭时成片保持原样，/verify 与接口返回 404，页脚、sitemap 和条款里也不再提
+  aiMetadata: {
+    enabled: false as boolean,
+  },
+
+  // Stripe 早期欺诈预警（actionable）时是否自动经支付商全额退掉剩余金额，避免之后的拒付。
+  // 关闭时只通知管理员，由管理员在后台核对后手动退款
+  fraudWarningAutoRefund: false as boolean,
+
   // SEO 文章（指南），按展示顺序排列。slug 是根路径：/<slug> 与 /zh/<slug>；正文在 src/content/<locale>.ts 的 articles[key]。
   // 新增文章：这里加一项，各语言 content 的 articles 补同名 key（缺了 typecheck 会报错）。
   // trend、howTo 两篇被首页直接链接，不要删。related 不填时推荐其余文章里最近更新的。

@@ -111,7 +111,7 @@ export async function runSeoCheck({ base = 'http://127.0.0.1:3000', production =
     if (dates.updatedAt < dates.publishedAt) cfg('error', `${label}.updatedAt 早于 publishedAt`)
   }
   checkDates('site.seo', site.seo)
-  const reservedSlugs = new Set(['guides', 'pricing', 'contact', 'report', 'privacy-policy', 'terms-of-service', 'refund-policy', 'sign-in', 'dashboard', 'checkout', 'admin', 'api', ...LOCALES])
+  const reservedSlugs = new Set(['guides', 'pricing', 'contact', 'report', 'verify', 'privacy-policy', 'terms-of-service', 'refund-policy', 'sign-in', 'dashboard', 'checkout', 'admin', 'api', ...LOCALES])
   const seenSlugs = new Set()
   for (const article of ARTICLES) {
     const label = `site.articles[${article.key}]`

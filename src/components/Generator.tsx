@@ -138,7 +138,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
     try {
       const uploadId = photo.uploadId ?? (await upload(photo.file))
       if (!photo.uploadId) setPhoto({ ...photo, uploadId })
-      const data = await api<{ generation: Generation }>('/api/generations', { json: { uploadId, durationId, styleId, locale } })
+      const data = await api<{ generation: Generation }>('/api/generations', { json: { uploadId, durationId, styleId, locale, consent } })
       track('generate_video', { style_id: styleId, duration_id: durationId, credits: data.generation.creditsCost })
       draftClearedRef.current = photo.file
       await clearDraft()

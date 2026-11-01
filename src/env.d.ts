@@ -8,4 +8,6 @@ interface Env {
   STRIPE_WEBHOOK_SECRET?: string
   PAYMENT_NOTIFY_WEBHOOK_URL?: string
   RESEND_API_KEY?: string
+  // Media Transformations 绑定（wrangler.jsonc 的 "media"）：只有 OUTPUT_MODERATION=frames 时需要，模板默认不声明
+  MEDIA_TRANSFORM?: MediaBinding
 }

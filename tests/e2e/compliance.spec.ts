@@ -23,7 +23,7 @@ async function upload(request: APIRequestContext, buffer?: Buffer<ArrayBuffer>) 
 }
 
 async function generate(request: APIRequestContext, uploadId: string) {
-  return (await json<{ generation: Generation }>(post(request, '/api/generations', { uploadId, durationId: 'short' }), 201)).generation.id
+  return (await json<{ generation: Generation }>(post(request, '/api/generations', { consent: true, uploadId, durationId: 'short' }), 201)).generation.id
 }
 
 async function generation(request: APIRequestContext, id: string) {
@@ -49,7 +49,7 @@ test('数据保留：进行中任务的原图不清理；到期后原图不能�
 
   // +8 天：原图过期（7 天），成片仍在（30 天）
   expect(await json<Swept>(post(request, '/api/dev/sweep', { days: 8 }))).toEqual({ uploads: 1, outputs: 0 })
-  const reuse = await json<{ error: string }>(post(request, '/api/generations', { uploadId, durationId: 'short' }), 400)
+  const reuse = await json<{ error: string }>(post(request, '/api/generations', { consent: true, uploadId, durationId: 'short' }), 400)
   expect(reuse.error).toBe('invalid_upload')
   expect(await credits(request)).toBe(STARTER - SHORT)
   expect((await request.get(`/api/generations/${genId}/video`)).status()).toBe(200)
@@ -91,12 +91,14 @@ test('举报下架：匿名在 /report 举报 → 管理员下架 → 同一原�
   const adminContext = await browser.newContext({ baseURL: ORIGIN })
   try {
     // 校验失败不入库：未勾选声明、邮箱错误、无法定位内容
-    const valid = { name: 'Jordan Reporter', email: 'reporter@example.com', contentRef: `video ${reported}`, reason: 'impersonation', attest: true }
+    const valid = { name: 'Jordan Reporter', email: 'reporter@example.com', contentRef: `video ${reported}`, reason: 'impersonation', attest: true, signature: 'Test Signature' }
     for (const [patch, code] of [
       [{ attest: false }, 'invalid_report'],
       [{ email: 'not-an-email' }, 'invalid_email'],
       [{ contentRef: 'x' }, 'invalid_report'],
       [{ reason: 'spam' }, 'invalid_report'],
+      [{ signature: '   ' }, 'invalid_report'],
+      [{ signature: undefined }, 'invalid_report'],
     ] as const) {
       expect((await json<{ error: string }>(post(anon.request, '/api/takedowns', { ...valid, ...patch }), 400)).error).toBe(code)
     }
@@ -114,6 +116,7 @@ test('举报下架：匿名在 /report 举报 → 管理员下架 → 同一原�
     await form.locator('[name=details]').fill('This is me and I never agreed to this.')
     await form.locator('[name=isDepicted]').check()
     await form.locator('[name=attest]').check()
+    await form.locator('[name=signature]').fill(valid.name)
     await form.getByRole('button').click()
     const sent = reportPage.getByTestId('report-sent')
     await expect(sent).toContainText('tdr_')
@@ -128,6 +131,7 @@ test('举报下架：匿名在 /report 举报 → 管理员下架 → 同一原�
     await admin.goto('/admin/takedowns')
     const item = admin.locator(`[data-testid="takedown-item"][data-id="${reportId}"]`)
     await expect(item).toContainText(reported)
+    await expect(item.getByTestId('takedown-signature')).toContainText(valid.name)
     await expect(item).toContainText(ownerEmail)
     await shot('02-admin-queue', admin)
     admin.on('dialog', (dialog) => {
@@ -186,7 +190,7 @@ test('导出我的数据：设置页下载 JSON，含本人全部记录；不含
   const genId = await generate(request, uploadId)
   await succeeded(request, genId)
   await json(post(request, '/api/contact', { topic: 'billing', message: 'Where is my invoice for the starter pack?' }), 201)
-  const reportBody = { name: 'Owner Export', email: ownerEmail, reason: 'other', attest: true, locale: 'en' }
+  const reportBody = { name: 'Owner Export', email: ownerEmail, reason: 'other', attest: true, signature: 'Test Signature', locale: 'en' }
   const ownReport = (await json<{ report: { id: string } }>(post(request, '/api/takedowns', { ...reportBody, contentRef: 'https://social.example/watch?v=copy' }), 201)).report.id
 
   // 另一个用户：自己下单，并举报 owner 的视频。这些都属于他的数据，不能出现在 owner 的导出里

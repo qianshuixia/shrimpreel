@@ -20,7 +20,7 @@ function ReportPage() {
   const t = useContent().report
   const locale = useLocale()
   const { user, config } = useSession()
-  const [form, setForm] = useState({ name: '', email: '', contentRef: '', reason: 'intimate', details: '', isDepicted: false, attest: false })
+  const [form, setForm] = useState({ name: '', email: '', contentRef: '', reason: 'intimate', details: '', isDepicted: false, attest: false, signature: '' })
   const [token, setToken] = useState<string | null>(null)
   const [resetKey, setResetKey] = useState(0)
   const [sending, setSending] = useState(false)
@@ -116,6 +116,10 @@ function ReportPage() {
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-1" name="attest" required checked={form.attest} onChange={(e) => set('attest', e.target.checked)} />
             <span>{t.attest}</span>
+          </label>
+          <label className="block space-y-1.5 text-sm font-medium">
+            <span>{t.signature}</span>
+            <input className="input" name="signature" required maxLength={200} value={form.signature} onChange={(e) => set('signature', e.target.value)} />
           </label>
           {siteKey ? <Turnstile siteKey={siteKey} onToken={setToken} resetKey={resetKey} /> : null}
           <ErrorText code={error} />

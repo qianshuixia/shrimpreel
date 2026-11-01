@@ -29,11 +29,19 @@ export type AdminOrder = {
   created_at: string
   paid_at: string | null
   refunded_at: string | null
+  dispute_id: string | null
+  dispute_status: 'open' | 'won' | 'lost' | null
+  dispute_credits: number
+  disputed_at: string | null
 }
 
-export function orderStatus(o: Pick<AdminOrder, 'status' | 'refunded_amount_cents'>) {
+// 争议处理中显示“争议中”；败诉后订单本身已是 refunded，胜诉后回到普通状态
+export function orderStatus(o: Pick<AdminOrder, 'status' | 'refunded_amount_cents'> & { dispute_status?: AdminOrder['dispute_status'] }) {
+  if (o.dispute_status === 'open') return 'disputed'
   return o.status === 'paid' && o.refunded_amount_cents > 0 ? 'partially_refunded' : o.status
 }
+
+export const DISPUTE_LABEL = { open: '争议中', won: '争议胜诉', lost: '争议败诉' } as const
 
 // provider：调用支付商退款 API 实际退钱，积分等退款 webhook 回来再回收；local：只本地记账（支付商后台已退但 webhook 丢失时用）
 async function refund(order: AdminOrder, mode: 'provider' | 'local') {

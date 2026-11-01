@@ -15,6 +15,8 @@ export interface TakedownInput {
   isDepicted: boolean
   // 善意声明（TAKE IT DOWN Act 等要求举报人声明内容未经同意）
   attest: boolean
+  // 电子签名（输入全名）
+  signature: string
 }
 
 // 下载文件名和链接里都带 generation id，举报人粘贴文件名或链接即可定位
@@ -31,13 +33,15 @@ export function parseTakedown(body: Partial<TakedownInput>) {
   const email = field(body.email, 320)
   const contentRef = field(body.contentRef, 2000)
   const details = field(body.details, 5000)
+  const signature = field(body.signature, 200)
   const reason = TAKEDOWN_REASONS.find((r) => r === body.reason)
   if (!name) throw new ApiError(400, 'invalid_report', 'name')
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new ApiError(400, 'invalid_email')
   if (contentRef.length < 3) throw new ApiError(400, 'invalid_report', 'contentRef')
   if (!reason) throw new ApiError(400, 'invalid_report', 'reason')
   if (body.attest !== true) throw new ApiError(400, 'invalid_report', 'attest')
-  return { name, email, contentRef, details: details || null, reason, isDepicted: body.isDepicted === true }
+  if (!signature) throw new ApiError(400, 'invalid_report', 'signature')
+  return { name, email, contentRef, details: details || null, reason, isDepicted: body.isDepicted === true, signature }
 }
 
 export async function createTakedown(
@@ -54,7 +58,7 @@ export async function createTakedown(
     (await generationIdFromShareLink(env, `${input.contentRef}\n${input.details ?? ''}`))
   await env.DB.prepare(
     `INSERT INTO takedown_requests (id, reporter_name, reporter_email, reporter_user_id, content_ref, generation_id, reason,
-     details, is_depicted, status, due_at, locale, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+     details, is_depicted, signature, status, due_at, locale, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
   )
     .bind(
       id,
@@ -66,6 +70,7 @@ export async function createTakedown(
       input.reason,
       input.details,
       input.isDepicted ? 1 : 0,
+      input.signature,
       dueAt,
       locale,
       now.toISOString(),

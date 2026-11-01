@@ -30,7 +30,7 @@ async function generation(request: APIRequestContext, id: string) {
 
 async function generate(request: APIRequestContext, body: Record<string, unknown>) {
   const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
-  return (await json<{ generation: { id: string } }>(post(request, '/api/generations', { uploadId: upload.id, durationId: 'short', ...body }), 201))
+  return (await json<{ generation: { id: string } }>(post(request, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short', ...body }), 201))
     .generation.id
 }
 
@@ -104,7 +104,7 @@ test('举报邮件：未登录举报不发回执，只提醒管理员；临近�
     uploadPhoto(page.request, Buffer.concat([readFileSync(PHOTO), randomBytes(16)]) as Buffer<ArrayBuffer>),
     201,
   )
-  const genId = (await json<{ generation: { id: string } }>(post(page.request, '/api/generations', { uploadId: upload.id, durationId: 'short' }), 201))
+  const genId = (await json<{ generation: { id: string } }>(post(page.request, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short' }), 201))
     .generation.id
   await expect.poll(async () => (await generation(page.request, genId)).status, { timeout: 60_000, intervals: [1000] }).toBe('succeeded')
 
@@ -118,7 +118,7 @@ test('举报邮件：未登录举报不发回执，只提醒管理员；临近�
         email: reporterEmail,
         contentRef: `video ${genId}`,
         reason: 'impersonation',
-        attest: true,
+        attest: true, signature: 'Test Signature',
         locale: 'zh',
       }),
       201,
@@ -184,7 +184,7 @@ test('举报邮件：未登录举报不发回执，只提醒管理员；临近�
           email,
           contentRef: 'https://example.com/some-video',
           reason: 'other',
-          attest: true,
+          attest: true, signature: 'Test Signature',
           locale: 'en',
         }),
         201,

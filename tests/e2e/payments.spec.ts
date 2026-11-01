@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { site } from '#/config/site'
 import { buyPackage, clawbackCredits, credits, devLogin, durationCredits, json, ledger, pkg, post, uniqueEmail, uploadPhoto } from './helpers'
 
 const STARTER = pkg('starter').credits
@@ -113,7 +114,7 @@ test('积分已部分消费后退款：最多扣到 0，流水记录实际扣除
   await devLogin(request, uniqueEmail('clawback'))
   const orderId = await buyPackage(request, 'starter')
   const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
-  await json(post(request, '/api/generations', { uploadId: upload.id, durationId: 'short' }), 201)
+  await json(post(request, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short' }), 201)
   expect(await credits(request)).toBe(STARTER - short)
 
   await json(post(request, '/api/mock-payments/complete', { orderId, outcome: 'refunded' }))
@@ -150,6 +151,76 @@ test('两次部分退款：按金额比例回收积分，重放幂等，累计�
 
   const refunds = (await ledger(page.request)).filter((e) => e.reason === 'order_refund').map((e) => e.delta)
   expect(refunds.sort((a, b) => a - b)).toEqual([-first, -(PARTY.credits - first)].sort((a, b) => a - b))
+})
+
+test('支付争议：opened 回收积分、重复投递不重复回收，won 补回；另一单 lost 记为全额退款，后台详情显示争议', async ({ page }) => {
+  await devLogin(page.request, uniqueEmail('dispute'))
+  const orderId = await buyPackage(page.request, 'party')
+  const dispute = (outcome: string, eventId: string, extra: Record<string, unknown> = {}) =>
+    json<Result & { credits?: number }>(post(page.request, '/api/mock-payments/complete', { orderId, outcome, eventId: `${orderId}_${eventId}`, ...extra }))
+  type OrderView = { status: string; refundedCredits: number }
+  const view = async () => (await json<{ order: OrderView }>(page.request.get(`/api/orders/${orderId}`))).order
+
+  expect(await dispute('dispute_opened', 'dp_open')).toMatchObject({ status: 'processed', credits: PARTY.credits })
+  expect(await credits(page.request)).toBe(0)
+  // 同一事件重放、同一争议的新事件：不重复回收
+  expect((await dispute('dispute_opened', 'dp_open')).status).toBe('duplicate')
+  expect((await dispute('dispute_opened', 'dp_open_again')).status).toBe('duplicate')
+  expect(await view()).toMatchObject({ status: 'paid', refundedCredits: PARTY.credits })
+
+  expect(await dispute('dispute_won', 'dp_won')).toMatchObject({ status: 'processed', credits: PARTY.credits })
+  expect(await credits(page.request)).toBe(PARTY.credits)
+  expect((await dispute('dispute_won', 'dp_won_again')).status).toBe('duplicate')
+  expect(await credits(page.request)).toBe(PARTY.credits)
+  expect(await view()).toMatchObject({ status: 'paid', refundedCredits: 0 })
+  expect((await ledger(page.request)).map((e) => [e.reason, e.delta]).sort()).toEqual(
+    [
+      ['dispute', -PARTY.credits],
+      ['dispute_won', PARTY.credits],
+      ['purchase', PARTY.credits],
+    ].sort(),
+  )
+
+  // 另一单败诉：积分在 opened 时已回收，lost 只把订单记为全额退款
+  const lostOrder = await buyPackage(page.request, 'starter')
+  const lost = (outcome: string, eventId: string) =>
+    json<Result>(post(page.request, '/api/mock-payments/complete', { orderId: lostOrder, outcome, eventId: `${lostOrder}_${eventId}`, disputeId: `dp_${lostOrder}` }))
+  expect((await lost('dispute_opened', 'o')).status).toBe('processed')
+  expect((await lost('dispute_lost', 'l')).status).toBe('processed')
+  expect((await lost('dispute_lost', 'l')).status).toBe('duplicate')
+  expect(await credits(page.request)).toBe(PARTY.credits)
+  const { order } = await json<{ order: OrderView }>(page.request.get(`/api/orders/${lostOrder}`))
+  expect(order).toMatchObject({ status: 'refunded', refundedCredits: STARTER })
+
+  // 后台订单详情显示争议状态
+  await devLogin(page.request, 'admin@example.com')
+  await page.goto(`/admin/orders/${lostOrder}`)
+  await expect(page.getByTestId('admin-order-dispute')).toContainText('争议败诉')
+})
+
+test('欺诈预警（fraudWarningAutoRefund 默认关闭）：不退款，订单与余额不变，管理员收到“未自动退款”的通知', async ({ page }) => {
+  test.skip(site.fraudWarningAutoRefund, '站点开启了欺诈预警自动退款')
+  await devLogin(page.request, uniqueEmail('fraud'))
+  const orderId = await buyPackage(page.request, 'party')
+  const warn = (eventId: string) =>
+    json<Result>(post(page.request, '/api/mock-payments/complete', { orderId, outcome: 'fraud_warning', eventId: `${orderId}_${eventId}` }))
+
+  const first = await warn('efw')
+  expect(first.status).toBe('processed')
+  expect(first.note).toContain('未自动退款')
+  expect((await warn('efw')).status).toBe('duplicate')
+  expect(await credits(page.request)).toBe(PARTY.credits)
+  const { order } = await json<{ order: { status: string; refundedAmountCents: number; refundedCredits: number } }>(page.request.get(`/api/orders/${orderId}`))
+  expect(order).toMatchObject({ status: 'paid', refundedAmountCents: 0, refundedCredits: 0 })
+
+  const alerts = async () => {
+    const { emails } = await json<{ emails: Array<{ template: string; params: { orderId: string; stage: string; detail: string | null } }> }>(
+      page.request.get(`/api/dev/emails?${new URLSearchParams({ to: 'admin@example.com', ref: 'admin_dispute:fraud_warning' })}`),
+    )
+    return emails.filter((e) => e.params.orderId === orderId)
+  }
+  await expect.poll(async () => (await alerts()).length, { timeout: 10_000 }).toBe(1)
+  expect((await alerts())[0]!.params).toMatchObject({ stage: 'fraud_warning', detail: expect.stringContaining('未自动退款') })
 })
 
 test('支付失败：结果页显示失败，订单 failed，余额不变', async ({ page }) => {

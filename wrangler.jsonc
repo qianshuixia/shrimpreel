@@ -39,7 +39,10 @@
     // Umami 实例地址（不带路径的 https origin，如 https://umami.example.com）；留空 = 不代理。只在 Worker 端使用，不进前端
     "UMAMI_ORIGIN": "",
     // 上传图片审核：openai（需 OPENAI_API_KEY）| none | mock（mock 只允许非 production）
-    "MODERATION_PROVIDER": "mock"
+    "MODERATION_PROVIDER": "mock",
+    // 成片输出审核：frames（抽 3 帧交给 MODERATION_PROVIDER）| off | mock（mock 只允许非 production）。
+    // frames 需要 Media Transformations 绑定：在本文件加 "media": { "binding": "MEDIA_TRANSFORM" }（本地 dev 会连远程，所以模板默认不声明），再把这里改成 frames，详见 docs/env.md
+    "OUTPUT_MODERATION": "off"
   },
   "d1_databases": [
     {

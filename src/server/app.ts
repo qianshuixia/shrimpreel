@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { defaultStyle, findDuration, findPackage, findPlan, findStyle, isLocale, localePath, sellingPlans, site } from '#/config/site'
 import { safeRedirectPath } from '#/lib/redirect'
+import { GENERATION_ID_PATTERN } from '#/lib/xmp'
 import { exportFileName, exportUserData } from './account-export'
 import { adminRoutes } from './admin'
 import { runHealthCheck } from './alerts'
@@ -11,6 +12,7 @@ import { classifyTouch, deviceFromUserAgent, requestAttribution, sanitizeTouch }
 import { deletedEmailHash, endSession, loadSessionUser, publicUser, startSession, upsertUser } from './auth'
 import { CLIENT_ERROR_PATH, summarizeClientError } from './client-error'
 import { clawbackStatements, expireStatements, ledgerStatements } from './credits'
+import { consentText } from './consent'
 import { CSP_REPORT_PATH, summarizeCspReports } from './csp'
 import { exchangeGoogleCode, googleAuthRedirect, googleClientId, googleOAuthConfig, verifyGoogleIdToken } from './google'
 import { publicGeneration, publicOrder, rateLimit, readJson, requireUser, pageParams } from './http'
@@ -47,6 +49,7 @@ import { turnstileSiteKey, verifyTurnstile } from './turnstile'
 import type { AppContext, GenerationRow, OrderRow, UploadRow, UserRow } from './types'
 import { ApiError, constantTimeEqual, createId, isCheckConstraintError, isProduction, nowIso, randomToken, sha256Hex } from './util'
 import { activeVideoProviderId } from './video'
+import { videoModelName } from './video/model-name'
 
 const MAX_ACTIVE_JOBS_PER_USER = 3
 
@@ -276,7 +279,9 @@ app.post('/api/generations', async (c) => {
   const settings = await getSettings(c.env)
   assertOpen(settings, user)
   await rateLimit(c.env.GENERATE_LIMITER, user.id)
-  const body = await readJson<{ uploadId: string; durationId: string; styleId?: string; mockOutcome: string; locale: string }>(c)
+  const body = await readJson<{ uploadId: string; durationId: string; styleId?: string; mockOutcome: string; locale: string; consent: unknown }>(c)
+  // 生成前必须同意（照片是本人或已获许可、对方成年）：服务端留存同意时间和当时的文案原文
+  if (body.consent !== true) throw new ApiError(400, 'consent_required')
   const duration = findDuration(body.durationId ?? '')
   if (!duration) throw new ApiError(400, 'invalid_duration')
   // 不带 styleId 用默认风格；带了但不存在报错，不悄悄换风格
@@ -298,19 +303,20 @@ app.post('/api/generations', async (c) => {
   await rememberLocale(c.env, user, body.locale)
 
   const providerId = activeVideoProviderId(c.env)
-  const mockOutcome = providerId === 'mock' && (body.mockOutcome === 'fail' || body.mockOutcome === 'hang') ? body.mockOutcome : null
+  const mockOutcome = providerId === 'mock' && (body.mockOutcome === 'fail' || body.mockOutcome === 'hang' || body.mockOutcome === 'output_reject') ? body.mockOutcome : null
   const meta = mockOutcome ? JSON.stringify({ mockOutcome }) : null
   const id = createId('gen')
   const now = nowIso()
+  const consent = await consentText(body.locale)
   try {
     await db.batch([
       db
         .prepare(
           `INSERT INTO generations (id, user_id, template_id, duration_id, duration_seconds, credits_cost, upload_id,
-           status, provider, provider_meta, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
+           status, provider, provider_meta, created_at, updated_at, consent_at, consent_text)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(id, user.id, style.id, duration.id, duration.seconds, duration.credits, upload.id, providerId, meta, now, now),
+        .bind(id, user.id, style.id, duration.id, duration.seconds, duration.credits, upload.id, providerId, meta, now, now, now, consent),
       ...ledgerStatements(db, {
         userId: user.id,
         delta: -duration.credits,
@@ -372,6 +378,28 @@ app.get('/api/generations/:id/video', async (c) => {
   return serveR2Object(c.env.MEDIA, row.output_r2_key, c.req.raw, {
     cacheControl: 'private, max-age=3600',
     downloadName: download ? `${site.brandName.replace(/\s+/g, '-').toLowerCase()}-ai-video-${row.id}.mp4` : undefined,
+  })
+})
+
+// 验证页（/verify）的后端：成片里的 AI 标记带着生成 id，这里只回答“是不是本站生成的”。
+// 不返回任何用户信息；不存在、已删除、已被下架都是 found:false，不区分原因
+app.get('/api/verify/:generationId', async (c) => {
+  if (!site.aiMetadata.enabled) throw new ApiError(404, 'not_found')
+  await rateLimit(c.env.AUTH_LIMITER, `verify:${c.req.header('cf-connecting-ip') ?? 'local'}`)
+  const id = c.req.param('generationId')
+  const row = GENERATION_ID_PATTERN.test(id)
+    ? await c.env.DB.prepare(`SELECT provider, created_at, completed_at FROM generations WHERE id = ? AND status = 'succeeded' AND removed_at IS NULL`)
+        .bind(id)
+        .first<Pick<GenerationRow, 'provider' | 'created_at' | 'completed_at'>>()
+    : null
+  c.header('cache-control', 'no-store')
+  if (!row) return c.json({ found: false })
+  return c.json({
+    found: true,
+    brand: site.brandName,
+    createdAt: row.completed_at ?? row.created_at,
+    model: videoModelName(row.provider),
+    provider: row.provider,
   })
 })
 
@@ -610,8 +638,9 @@ app.post('/api/mock-payments/complete', async (c) => {
   const user = requireUser(c)
   const body = await readJson<{
     orderId: string
-    outcome: 'paid' | 'failed' | 'refunded'
+    outcome: 'paid' | 'failed' | 'refunded' | 'dispute_opened' | 'dispute_won' | 'dispute_lost' | 'dispute_closed' | 'fraud_warning'
     eventId: string
+    disputeId?: string // 争议类 outcome 的争议号，默认每张订单一个
     amountCents?: number
     paidAmountCents?: number
     paidCurrency?: string
@@ -663,7 +692,23 @@ app.post('/api/mock-payments/complete', async (c) => {
             refundAmountCents: Number.isInteger(body.amountCents) && body.amountCents! > 0 ? body.amountCents! : null,
             originalAmountCents: null,
           }
-        : { kind: 'failed', eventId, eventType: 'mock.failed', orderId: order.id }
+        : outcome === 'fraud_warning'
+          ? { kind: 'fraud_warning', eventId, eventType: 'mock.fraud_warning', orderId: order.id, providerPaymentId: order.provider_payment_id }
+          : outcome.startsWith('dispute_')
+            ? {
+                kind: 'disputed',
+                eventId,
+                eventType: `mock.${outcome}`,
+                orderId: order.id,
+                providerPaymentId: order.provider_payment_id,
+                disputeId: body.disputeId ?? `mock_dp_${order.id}`,
+                stage: ({ dispute_opened: 'opened', dispute_won: 'won', dispute_lost: 'lost', dispute_closed: 'closed' } as const)[
+                  outcome as 'dispute_opened' | 'dispute_won' | 'dispute_lost' | 'dispute_closed'
+                ],
+                amountCents: order.paid_amount_cents ?? order.amount_cents,
+                reason: 'mock',
+              }
+            : { kind: 'failed', eventId, eventType: 'mock.failed', orderId: order.id }
   if (body.deliver === false) {
     if (event.kind !== 'paid') throw new ApiError(400, 'invalid_request')
     await c.env.KV.put(mockPaidKey(order.id), JSON.stringify({ ...event, eventId: `reconcile:${event.providerPaymentId}` }), {

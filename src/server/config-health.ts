@@ -34,6 +34,9 @@ export const REQUIRED_BINDINGS = [
   'AUTH_LIMITER',
 ] as const
 
+// 可选绑定：只有用到对应功能时才需要（OUTPUT_MODERATION=frames 需要 MEDIA_TRANSFORM）
+export const OPTIONAL_BINDINGS = ['MEDIA_TRANSFORM'] as const
+
 export function isWeakSessionSecret(secret: string) {
   return secret.length < 32 || secret === EXAMPLE_SESSION_SECRET
 }
@@ -152,6 +155,18 @@ export function checkConfig(input: ConfigInput): ConfigIssue[] {
   else if (!MODERATION_SECRETS[moderation]) error('MODERATION_PROVIDER', `未知的 MODERATION_PROVIDER=${moderation || '(空)'}，可选 openai、none`)
   else if (moderation === 'none') warn('MODERATION_PROVIDER', 'MODERATION_PROVIDER=none：上传图片不做审核')
   else requireSecrets(MODERATION_SECRETS[moderation], '图片审核')
+
+  // 成片输出审核：frames 要有 Media Transformations 绑定；off 时只有输入照片审核，成片不检查
+  const outputModeration = vars('OUTPUT_MODERATION') || 'off'
+  if (outputModeration === 'mock') error('OUTPUT_MODERATION', 'OUTPUT_MODERATION=mock：生产环境提交生成后会一直失败重试')
+  else if (outputModeration === 'frames') {
+    if (!input.bindings.includes('MEDIA_TRANSFORM')) {
+      error('OUTPUT_MODERATION', 'OUTPUT_MODERATION=frames 但没有 MEDIA_TRANSFORM 绑定：成片无法抽帧审核，在 wrangler.jsonc 加 "media": { "binding": "MEDIA_TRANSFORM" }')
+    }
+    if (moderation === 'none') warn('OUTPUT_MODERATION', 'OUTPUT_MODERATION=frames 但 MODERATION_PROVIDER=none：成片不做审核')
+  } else if (outputModeration === 'off') {
+    if (moderation !== 'none') warn('OUTPUT_MODERATION', 'OUTPUT_MODERATION=off：成片输出不做内容审核（输入照片仍会审核）。欧盟禁止生成未经同意的私密内容，建议改为 frames')
+  } else error('OUTPUT_MODERATION', `未知的 OUTPUT_MODERATION=${outputModeration}，可选 frames、off`)
 
   if (vars('TURNSTILE_SITE_KEY')) requireSecrets(['TURNSTILE_SECRET_KEY'], 'Turnstile')
   else warn('TURNSTILE_SITE_KEY', 'TURNSTILE_SITE_KEY 为空：留言和举报表单没有人机校验，只靠限流')

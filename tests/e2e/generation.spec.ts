@@ -12,11 +12,24 @@ const FULL = durationCredits('full')
 test('余额不足返回 402，不产生任务也不产生流水', async ({ request }) => {
   await devLogin(request, uniqueEmail('broke'))
   const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
-  const res = await json<{ error: string }>(post(request, '/api/generations', { uploadId: upload.id, durationId: 'short' }), 402)
+  const res = await json<{ error: string }>(post(request, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short' }), 402)
   expect(res.error).toBe('insufficient_credits')
   const { generations } = await json<{ generations: Generation[] }>(request.get('/api/generations'))
   expect(generations).toHaveLength(0)
   expect(await ledger(request)).toHaveLength(0)
+})
+
+test('创建生成必须带 consent: true，缺失、为假或不是布尔值都返回 400 且不扣积分', async ({ request }) => {
+  await devLogin(request, uniqueEmail('noconsent'))
+  await buyPackage(request, 'starter')
+  const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
+  for (const consent of [undefined, false, 'true', 1]) {
+    const res = await json<{ error: string }>(post(request, '/api/generations', { consent, uploadId: upload.id, durationId: 'short' }), 400)
+    expect(res.error).toBe('consent_required')
+  }
+  expect(await credits(request)).toBe(STARTER)
+  const { generations } = await json<{ generations: Generation[] }>(request.get('/api/generations'))
+  expect(generations).toHaveLength(0)
 })
 
 test('上传校验与越权：伪装 JPEG 返回 415，不能用别人的上传发起生成', async ({ request, playwright }) => {
@@ -29,7 +42,7 @@ test('上传校验与越权：伪装 JPEG 返回 415，不能用别人的上传�
   try {
     await devLogin(other, uniqueEmail('intruder'))
     await buyPackage(other, 'starter')
-    const res = await json<{ error: string }>(post(other, '/api/generations', { uploadId: upload.id, durationId: 'short' }), 400)
+    const res = await json<{ error: string }>(post(other, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short' }), 400)
     expect(res.error).toBe('invalid_upload')
     expect(await credits(other)).toBe(STARTER)
     // 别人的上传图片也不能直接读取
@@ -45,7 +58,7 @@ test('生成失败自动退回积分，失败任务没有视频', async ({ reque
   await buyPackage(request, 'starter')
   const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
   const { generation } = await json<{ generation: Generation }>(
-    post(request, '/api/generations', { uploadId: upload.id, durationId: 'full', mockOutcome: 'fail' }),
+    post(request, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'full', mockOutcome: 'fail' }),
     201,
   )
   expect(await credits(request)).toBe(STARTER - FULL)
@@ -73,7 +86,7 @@ test('并发轮询只落库一次、成片不被误删；后台记录服务商�
   await buyPackage(request, 'starter')
   const start = async (mockOutcome: 'hang' | 'fail') => {
     const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
-    const body = { uploadId: upload.id, durationId: 'short', mockOutcome }
+    const body = { consent: true, uploadId: upload.id, durationId: 'short', mockOutcome }
     return (await json<{ generation: Generation }>(post(request, '/api/generations', body), 201)).generation.id
   }
   const status = async (id: string) => (await json<{ generation: Generation }>(request.get(`/api/generations/${id}`))).generation.status
@@ -115,7 +128,7 @@ test('风格：不带 styleId 用默认风格，不存在的风格返回 400 inv
   await buyPackage(request, 'starter')
   const start = async (extra: Record<string, unknown>, status: number) => {
     const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
-    return json<{ generation: Generation; error: string }>(post(request, '/api/generations', { uploadId: upload.id, durationId: 'short', ...extra }), status)
+    return json<{ generation: Generation; error: string }>(post(request, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short', ...extra }), status)
   }
 
   const bad = await start({ styleId: 'no-such-style' }, 400)

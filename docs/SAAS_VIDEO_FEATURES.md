@@ -30,6 +30,7 @@ P0 已完成（2026-10-20）：AI 可见标识、举报下架、上传图片审�
   - 签名证书：信任列表上的 CA（截至 2026-04 有 DigiCert、SSL.com、Tauth Labs、Trufo）只给通过 C2PA Conformance Program 的生成器产品签发证书。通过之前可用自有证书签名，标记机器可读、防篡改有效，但验证器会提示签发者不受信任。
   - 成本：每 1000 个任务约 $0.13–0.41，含 `sleepAfter` 空闲计费。
   - 还没用真实 fal 输出验证过 MP4 兼容性，目前只测了 seed 模板和合成视频。
+  - 模板现在默认写 XMP 元数据层：Worker 在成片末尾追加一个 XMP `uuid` box（`DigitalSourceType = trainedAlgorithmicMedia`、站点品牌、模型、创建时间、生成 id、验证链接，不含用户信息），免费检测工具是 `/verify` 页（浏览器里读文件，不上传）。C2PA 签名与烧录水印仍是 `containers/postprocess/` 的可选路径（需 Workers Paid + Containers）。XMP 在重新压缩或平台转码后会丢失，C2PA 同样会随转码丢失，二者都不防篡改。
 - **来源**：
   - [EU Code of Practice on AI-generated content](https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content)
   - [Reed Smith：第 50 条指南与 Code of Practice](https://www.reedsmith.com/our-insights/blogs/viewpoints/102nbz0/transparency-obligations-for-ai-generated-content-the-code-of-practice-adequacy/)

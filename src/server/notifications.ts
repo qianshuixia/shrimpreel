@@ -102,7 +102,43 @@ export function notifyOrderPaid(env: Env, orderId: string) {
   })
 }
 
-type NewTakedown = Pick<TakedownRow, 'id' | 'reporter_email' | 'reporter_user_id' | 'locale' | 'reason' | 'generation_id' | 'due_at'> & {
+const DISPUTE_TITLE = { opened: '收到争议', won: '争议胜诉', lost: '争议败诉', closed: '争议关闭', fraud_warning: '欺诈预警' } as const
+
+// 支付争议（拒付）和欺诈预警：只通知管理员（邮件 + 聊天群），同一争议同一阶段只发一次。
+// 只在事件首次处理成功时调用，重放的 webhook 不会重复通知
+export function notifyDispute(
+  env: Env,
+  input: {
+    orderId: string
+    stage: 'opened' | 'won' | 'lost' | 'closed' | 'fraud_warning'
+    key: string // 争议编号，没有时用支付编号
+    credits: number
+    amountCents: number | null
+    reason: string | null
+    detail: string | null
+  },
+) {
+  return safely('dispute', async () => {
+    const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(input.orderId).first<OrderRow>()
+    if (!order) return
+    const currency = order.paid_currency ?? order.currency
+    const amount = formatPrice(input.amountCents ?? order.paid_amount_cents ?? order.amount_cents, currency)
+    const webhook = env.PAYMENT_NOTIFY_WEBHOOK_URL
+    if (webhook) {
+      const text = [`【${site.brandName}】${DISPUTE_TITLE[input.stage]} ${amount}`, `订单 ${order.id} · 回收/补回 ${input.credits} 积分`, input.reason ?? '', input.detail ?? '']
+      await safely('dispute chat', () => postChatMessage(webhook, text.filter(Boolean).join('\n')))
+    }
+    await sendEmails(
+      env,
+      adminAlerts(env, `admin_dispute:${input.stage}:${input.key}`, () => ({
+        template: 'admin_dispute',
+        params: { orderId: order.id, stage: input.stage, credits: input.credits, amount, reason: input.reason, detail: input.detail },
+      })),
+    )
+  })
+}
+
+type NewTakedown =Pick<TakedownRow, 'id' | 'reporter_email' | 'reporter_user_id' | 'locale' | 'reason' | 'generation_id' | 'due_at'> & {
   receipt: boolean
 }
 

@@ -28,6 +28,7 @@ export function Footer() {
         { to: '/terms-of-service', label: c.footer.terms },
         { to: '/refund-policy', label: c.footer.refund },
         { to: '/report', label: c.footer.report },
+        ...(site.aiMetadata.enabled ? [{ to: '/verify' as const, label: c.footer.verify }] : []),
       ],
       // 启用 GA4 或 Clarity 时才有同意横幅，才需要“Cookie 设置”
       cookieSettings: CONSENT_REQUIRED,

@@ -13,12 +13,21 @@ export interface TemplateParams {
   content_removed: { reportId: string; videos: number }
   admin_takedown: { reportId: string; stage: 'new' | 'due_soon' | 'overdue'; reason: string; generationId: string | null; dueAt: string }
   admin_contact: { messageId: string; topic: string; email: string; message: string }
+  // 支付争议：stage 是争议阶段或 fraud_warning（欺诈预警）；credits 为回收（opened）或补回（won）的积分；detail 为补充说明（如自动退款结果）
+  admin_dispute: {
+    orderId: string
+    stage: 'opened' | 'won' | 'lost' | 'closed' | 'fraud_warning'
+    credits: number
+    amount: string | null
+    reason: string | null
+    detail: string | null
+  }
   // count：异常数量；total：分母（只有失败率有）；windowMinutes：统计窗口（积压为“超过多少分钟未完成”）
   admin_alert: { kind: AlertKind; count: number; total: number | null; windowMinutes: number; detail: string | null }
 }
 
 export type EmailTemplate = keyof TemplateParams
-type AdminTemplate = 'admin_takedown' | 'admin_contact' | 'admin_alert'
+type AdminTemplate = 'admin_takedown' | 'admin_contact' | 'admin_dispute' | 'admin_alert'
 type UserTemplate = Exclude<EmailTemplate, AdminTemplate>
 
 export interface RenderedEmail {
@@ -279,6 +288,29 @@ const ADMIN_RENDERERS: { [K in AdminTemplate]: Render<K> } = {
     cta: { label: '在后台查看', url: `${ctx.siteUrl}/admin/messages` },
     replyTo: p.email,
   }),
+
+  admin_dispute: (p, ctx) => {
+    const title = {
+      opened: '收到支付争议（拒付）',
+      won: '支付争议胜诉',
+      lost: '支付争议败诉',
+      closed: '支付争议已关闭',
+      fraud_warning: '收到欺诈预警',
+    }[p.stage]
+    const summary = {
+      opened: `订单 ${p.orderId} 被持卡人发起争议，已回收 ${p.credits} 积分（用户已花掉的部分扣不回）。请在支付商后台按期提交证据，逾期视为败诉。`,
+      won: `订单 ${p.orderId} 的争议胜诉，资金留在商户，已补回 ${p.credits} 积分。`,
+      lost: `订单 ${p.orderId} 的争议败诉，资金已退回持卡人，订单已记为全额退款（积分在争议开启时已回收）。`,
+      closed: `订单 ${p.orderId} 的争议未成立就关闭了，资金留在商户，已补回 ${p.credits} 积分。`,
+      fraud_warning: `订单 ${p.orderId} 收到发卡行的欺诈预警，尚未形成拒付。`,
+    }[p.stage]
+    return {
+      subject: `[${brand}] ${title}：${p.orderId}`,
+      heading: title,
+      paragraphs: [summary, p.amount ? `争议金额：${p.amount}` : '', p.reason ? `原因：${p.reason}` : '', p.detail ? `说明：${p.detail}` : ''],
+      cta: { label: '查看订单', url: `${ctx.siteUrl}/admin/orders/${encodeURIComponent(p.orderId)}` },
+    }
+  },
 
   admin_alert: (p, ctx) => {
     const alert = ALERTS_ZH[p.kind](p)

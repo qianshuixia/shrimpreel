@@ -60,6 +60,26 @@ export type PaymentEvent =
       originalAmountCents: number | null // 退款事件里带的原始实收金额（与 refundAmountCents 同币种）
     }
   | { kind: 'failed'; eventId: string; eventType: string; orderId: string | null }
+  | {
+      // 持卡人拒付：opened 回收积分；won / closed（资金留在商户，如询单关闭、撤销）补回；lost 订单记为全额退款
+      kind: 'disputed'
+      eventId: string
+      eventType: string
+      orderId: string | null
+      providerPaymentId: string | null
+      disputeId: string // 同一争议的所有事件保持不变，作为积分流水的幂等键
+      stage: DisputeStage
+      amountCents: number | null // 支付商没有明确单位时为 null，仅用于告警展示
+      reason: string | null
+    }
+  | {
+      // 发卡行欺诈预警（Stripe radar.early_fraud_warning）：还没有拒付，主动全额退款可以避免之后的拒付
+      kind: 'fraud_warning'
+      eventId: string
+      eventType: string
+      orderId: string | null
+      providerPaymentId: string | null
+    }
   | { kind: 'ignored'; eventId: string; eventType: string }
 
 // 向支付商发起退款。只负责“提交”，积分回收与订单状态以之后的退款 webhook 为准（幂等）。
@@ -81,7 +101,10 @@ export interface RefundRequestResult {
   status: string
 }
 
+export type DisputeStage = 'opened' | 'won' | 'lost' | 'closed'
+
 export type PaidEvent = Extract<PaymentEvent, { kind: 'paid' }>
+export type DisputeEvent = Extract<PaymentEvent, { kind: 'disputed' }>
 export type SubscriptionEvent = Extract<PaymentEvent, { kind: 'subscription' }>
 
 export type SubscriptionStatus = 'active' | 'past_due' | 'canceled' | 'expired'

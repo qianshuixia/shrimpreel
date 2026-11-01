@@ -13,7 +13,7 @@ type HealthCheck = {
 
 async function generate(request: APIRequestContext, mockOutcome: 'fail' | 'hang') {
   const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
-  return (await json<{ generation: { id: string } }>(post(request, '/api/generations', { uploadId: upload.id, durationId: 'short', mockOutcome }), 201))
+  return (await json<{ generation: { id: string } }>(post(request, '/api/generations', { consent: true, uploadId: upload.id, durationId: 'short', mockOutcome }), 201))
     .generation.id
 }
 

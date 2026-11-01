@@ -29,6 +29,9 @@ const WEBHOOK_EVENTS = [
   'checkout.session.expired',
   'refund.created',
   'refund.updated',
+  'charge.dispute.created',
+  'charge.dispute.closed',
+  'radar.early_fraud_warning.created',
   ...(site.plans.length ? SUBSCRIPTION_EVENTS : []),
 ]
 

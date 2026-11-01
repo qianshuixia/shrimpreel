@@ -40,7 +40,9 @@
     // Umami 实例地址（不带路径的 https origin，如 https://umami.example.com）；留空 = 不代理。只在 Worker 端使用，不进前端
     "UMAMI_ORIGIN": "",
     // 有 OPENAI_API_KEY 后改为 openai
-    "MODERATION_PROVIDER": "none"
+    "MODERATION_PROVIDER": "none",
+    // 成片输出审核：frames | off。frames 需要 "media": { "binding": "MEDIA_TRANSFORM" } 绑定，见 wrangler.jsonc 的说明
+    "OUTPUT_MODERATION": "off"
   },
   "d1_databases": [
     {

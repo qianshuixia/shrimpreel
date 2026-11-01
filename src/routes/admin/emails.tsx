@@ -39,6 +39,7 @@ const TEMPLATES: Record<string, string> = {
   content_removed: '内容被删除',
   admin_takedown: '举报提醒（管理员）',
   admin_contact: '留言提醒（管理员）',
+  admin_dispute: '支付争议提醒（管理员）',
 }
 
 // 交易邮件发件箱：pending 由 Cron 每 5 分钟按退避重试（最多 5 次）；failed / skipped 可手动重发

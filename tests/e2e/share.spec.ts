@@ -14,7 +14,7 @@ function uniquePhoto() {
 async function renderedVideo(request: APIRequestContext, photo?: Buffer<ArrayBuffer>) {
   await buyPackage(request, 'starter')
   const uploadId = (await json<{ upload: { id: string } }>(uploadPhoto(request, photo), 201)).upload.id
-  const id = (await json<{ generation: { id: string } }>(post(request, '/api/generations', { uploadId, durationId: 'short' }), 201)).generation.id
+  const id = (await json<{ generation: { id: string } }>(post(request, '/api/generations', { consent: true, uploadId, durationId: 'short' }), 201)).generation.id
   await expect
     .poll(async () => (await json<{ generation: { status: string } }>(request.get(`/api/generations/${id}`))).generation.status, {
       timeout: 60_000,
@@ -140,7 +140,7 @@ test('分享链接被举报：凭分享链接即可定位视频，下架后分�
         email: 'share-reporter@example.com',
         contentRef: `${ORIGIN}/zh/v/${shareId}`,
         reason: 'impersonation',
-        attest: true,
+        attest: true, signature: 'Test Signature',
       }),
       201,
     )

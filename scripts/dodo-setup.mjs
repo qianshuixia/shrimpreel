@@ -33,6 +33,12 @@ const WEBHOOK_EVENTS = [
   'payment.cancelled',
   'refund.succeeded',
   'refund.failed',
+  'dispute.opened',
+  'dispute.won',
+  'dispute.lost',
+  'dispute.accepted',
+  'dispute.expired',
+  'dispute.cancelled',
   ...(site.plans.length ? SUBSCRIPTION_EVENTS : []),
 ]
 

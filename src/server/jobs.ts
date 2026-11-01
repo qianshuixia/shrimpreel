@@ -1,14 +1,17 @@
-import { findDuration, findStyle } from '#/config/site'
+import { findDuration, findStyle, site } from '#/config/site'
 import { jobToken, signedUploadUrl, templateSourceUrl } from './media'
 import { expireStatements, generationRefundStatements } from './credits'
 import { notifyGenerationFinished } from './notifications'
+import { moderateOutput } from './output-moderation'
 import { reconcilePendingOrders } from './reconcile'
 import type { GenerationRow, UploadRow, VideoJobMessage } from './types'
 import { sweepExpiredMedia, sweepHandoff } from './retention'
 import { grantDueSubscriptions } from './subscriptions'
 import { nowIso } from './util'
 import { getVideoProvider } from './video'
+import { videoModelName } from './video/model-name'
 import { VideoProviderError } from './video/types'
+import { tagOutputWithXmp } from './xmp'
 
 const JOB_TIMEOUT_MINUTES = 45
 // 成片大小上限：带 Content-Length 时直接流式写入 R2，不占 Worker 内存；没带时只能边读边缓存，上限更低（Worker 内存 128 MB）
@@ -218,6 +221,24 @@ async function pollGeneration(env: Env, generation: GenerationRow) {
     await env.MEDIA.put(outputKey, await source.arrayBuffer(), { httpMetadata: { contentType: 'video/mp4' } })
   }
   const now = nowIso()
+  // 审核服务不可用时抛错，队列重试（不判失败）；不通过则删掉成片、失败退积分
+  const verdict = await moderateOutput(env, generation, outputKey)
+  if (!verdict.allowed) {
+    console.warn('output moderation rejected', { generationId: generation.id, reason: verdict.reason })
+    if (await failGeneration(env, generation.id, 'output_moderation_rejected', verdict.reason)) await env.MEDIA.delete(outputKey)
+    return
+  }
+  // 机器可读的 AI 标记（XMP）：创建时间与 completed_at 一致；站点开关 aiMetadata 关闭时成片保持原样
+  if (site.aiMetadata.enabled) {
+    await tagOutputWithXmp(env.MEDIA, outputKey, {
+      generationId: generation.id,
+      brand: site.brandName,
+      model: videoModelName(generation.provider),
+      provider: generation.provider,
+      createdAt: now,
+      verifyUrl: new URL(`/verify?id=${encodeURIComponent(generation.id)}`, env.SITE_URL).toString(),
+    })
+  }
   const costCents = status.costCents ?? provider.costCents(generation.duration_seconds, generation.template_id)
   const saved = await env.DB.prepare(
     `UPDATE generations SET status = 'succeeded', output_r2_key = ?, provider_cost_cents = ?, completed_at = ?, updated_at = ?

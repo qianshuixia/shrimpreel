@@ -16,6 +16,8 @@ const LOCAL_DEV_VARS = {
   PAYMENT_PROVIDER: 'mock',
   VIDEO_PROVIDER: 'mock',
   MODERATION_PROVIDER: 'mock',
+  // 本地没有 Media 绑定（只有 remote 模式）：成片输出审核走 mock，按生成请求的 mockOutcome 判定
+  OUTPUT_MODERATION: 'mock',
   // 支付商一律打 test 环境：.dev.vars 放的是 test 凭据，sandbox e2e 也只能用测试卡，不能对着正式环境下单
   WAFFO_ENVIRONMENT: 'test',
   DODO_ENVIRONMENT: 'test',

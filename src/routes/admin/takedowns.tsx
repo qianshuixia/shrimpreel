@@ -16,6 +16,7 @@ type TakedownRow = {
   reason: string
   details: string | null
   is_depicted: number
+  signature: string | null
   status: 'open' | 'removed' | 'rejected'
   due_at: string
   resolved_at: string | null
@@ -100,6 +101,10 @@ function AdminTakedowns() {
               <p className="text-sm break-all">
                 <span className="text-muted">内容：</span>
                 {t.content_ref}
+              </p>
+              <p className="text-sm break-all" data-testid="takedown-signature">
+                <span className="text-muted">电子签名：</span>
+                {t.signature ?? '（无）'}
               </p>
               {t.details ? <p className="whitespace-pre-wrap text-sm leading-6">{t.details}</p> : null}
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted">

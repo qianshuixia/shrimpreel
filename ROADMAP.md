@@ -23,6 +23,11 @@
   - 上传审核：OpenAI omni-moderation 或 mock。
   - 联系和举报表单接入 Turnstile；支付结果页从地址栏去掉 `email`。
   - 说明见 README 的“合规与内容安全”。
+- 2026-12-02 法规节点前的合规补强已在本地完成（2026-11-01），调研报告和工件在 `.tmp/template-gaps-2026-11/`、`.tmp/compliance-2026-11/`：
+  - 成片机器可读标记：队列在成片末尾追加 XMP（IPTC `trainedAlgorithmicMedia`、品牌、模型、视频 ID、验证地址），新增免费的 `/verify` 验证页和 `GET /api/verify/:id`。exiftool 13.60 能读出全部字段，ffmpeg 解码正常。依据：欧盟 AI Act 50(2)（已上市系统宽限到 2026-12-02）、加州 SB 942。C2PA 和水印仍未接入，见下一步。XMP/验证页和欺诈预警自动退款为站点开关（`aiMetadata`、`fraudWarningAutoRefund`），默认关闭。
+  - 成片输出审核：`OUTPUT_MODERATION=frames` 用 Cloudflare Media Transformations 抽 3 帧逐帧审核，不通过删片退积分。默认 `off`，真实绑定未实测。
+  - 服务端记录同意（`consent_at`、`consent_text`，迁移 0016）；举报表单加电子签名；隐私政策加“不面向 13 岁以下”。
+  - 支付争议：Stripe、Dodo 的争议事件回收和补回积分并通知管理员，Stripe 欺诈预警自动退款（迁移 0017）。
 - P1-9 交易邮件已在本地完成（Cloudflare Email Service，D1 发件箱去重、退避重试、后台邮件页），工件在 `.tmp/transactional-email/`。说明见 README 的“交易邮件”。随后加了可选的 Resend 发信渠道（`RESEND_API_KEY`，单元测试覆盖，未实测真实发信）。
 - 监控告警已在本地完成：Cron 健康检查（生成失败率、死信、积压、支付回调、付款待核对、邮件），按 6 小时时间桶去重发给 `ADMIN_EMAILS`；死信队列由同一 Worker 消费，判失败并退积分。说明见 README 的“监控告警”。
 - GA4 同意横幅已在本地完成：Consent Mode v2 basic 模式，接受前不加载 gtag.js，撤回时删除 `_ga` 系列 Cookie；页脚可重新打开；隐私政策按统计配置自动调整。默认配置不启用 GA4（推荐 Cloudflare Web Analytics），浏览器流程用临时 `ga4Id` 验证过一次。说明见 README 的“合规与内容安全”。
@@ -109,7 +114,9 @@
   - R2 生命周期规则还没有在线上 bucket 配置。
 - 交易邮件：本地只模拟发送。还没有 Onboard 发信域名、真实发出过邮件，也没有验证垃圾箱投递率和 Gmail/Outlook 的显示效果；需要 Workers Paid。
 - Cloudflare 线上部署：D1/R2/KV/Queues/Rate Limiting/Cron 的实际绑定、自定义域名、HSTS、`robots.txt` 和 sitemap 的线上输出、Core Web Vitals。
-- 线上 D1 执行迁移 0014、0015（需要 `npm run db:migrate:remote`）。
+- 线上 D1 执行迁移 0014–0017（需要 `npm run db:migrate:remote`）。
+- 成片输出审核的真实抽帧（Media Transformations 绑定、计费）；e2e 只用 mock 验证了拒绝后的失败和退款。
+- 争议事件只用按文档构造的 payload 测过：Stripe 可用 test 卡 `4000 0000 0000 0259` 触发真实拒付，还没跑；Dodo 的 test 模式触发不了。
 - 成片分享：社交平台（X、Facebook、Telegram、微信等）抓取 OG 预览；Safari 上的封面截帧（不支持 canvas `filter` 的 Safari 版本上背景不会模糊，但仍能截出封面）。
 - D1 备份：线上 Cron 每天写入 R2、30 天清理，以及 `scripts/restore-d1.mjs --remote` 恢复到新建的线上库。
 - 付款即时通知：没有往真实的 Telegram、飞书、Discord webhook 发过消息。
@@ -304,7 +311,7 @@
    - 线上真实付款和真实生成未验证（支付只在 Dodo、Waffo 沙盒跑过）。
    - 运行 `npm run seo:check -- --base https://<domain> --production` 和 `/seo-audit https://<domain>`（含 Core Web Vitals）。
 2. P0 剩余项：
-   - C2PA 加成片内烧录水印：本地技术验证已完成。接下来在 Docker 里实测，再接入 Worker（`POSTPROCESS_PROVIDER`，默认关闭，因为开启后 deploy 需要 Docker 和 Workers Paid）；生产签名证书见 [docs/SAAS_VIDEO_FEATURES.md](docs/SAAS_VIDEO_FEATURES.md) 的 P0-1。
+   - C2PA 加成片内烧录水印（XMP 元数据和验证页已完成，这一项补上签名和水印两层）：本地技术验证已完成。接下来在 Docker 里实测，再接入 Worker（`POSTPROCESS_PROVIDER`，默认关闭，因为开启后 deploy 需要 Docker 和 Workers Paid）；生产签名证书见 [docs/SAAS_VIDEO_FEATURES.md](docs/SAAS_VIDEO_FEATURES.md) 的 P0-1。
    - 未成年人和名人检测：OpenAI 的图片类别不覆盖这两类。
 3. P1：
    - 首单转化：2026-10-25 定为不做免费生成（成本高、易被刷），改用站点层的单条积分包和生成器就地购买（见 #36）；带水印的免费试用不再计划。

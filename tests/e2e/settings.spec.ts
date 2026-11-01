@@ -29,7 +29,7 @@ async function userWithUpload(request: APIRequestContext) {
   const { upload } = await json<{ upload: { id: string } }>(uploadPhoto(request), 201)
   return { user, uploadId: upload.id }
 }
-const generate = (request: APIRequestContext, uploadId: string) => post(request, '/api/generations', { uploadId, durationId: 'short' })
+const generate = (request: APIRequestContext, uploadId: string) => post(request, '/api/generations', { consent: true, uploadId, durationId: 'short' })
 
 test.beforeAll(async ({ playwright }) => {
   admin = await playwright.request.newContext({ baseURL: ORIGIN })

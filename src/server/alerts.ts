@@ -11,8 +11,8 @@ import { fetchVideoBalance, type VideoBalance } from './video-balance'
 
 export const ALERT_BUCKET_HOURS = 6
 
-// 不计入生成失败率的错误码：管理员手动判失败、举报下架都不是系统问题
-const EXCLUDED_FAILURES = ['admin_failed', 'content_removed']
+// 不计入生成失败率的错误码：管理员手动判失败、举报下架、成片被输出审核拦下都不是系统问题
+const EXCLUDED_FAILURES = ['admin_failed', 'content_removed', 'output_moderation_rejected']
 
 // 视频服务商账户问题（没配密钥、密钥失效、余额或月度额度不足）：重试没用，要站长去服务商后台处理。
 // 任务已失败退积分，但之后的任务会一直失败，所以出现 1 个就告警，不等失败率

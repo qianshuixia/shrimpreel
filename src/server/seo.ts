@@ -17,7 +17,7 @@ export function isSeoPath(pathname: string) {
 const ARTICLE_PATHS = ARTICLES.map((article) => `/${article.slug}`)
 
 // 可被索引的公开页面（账户、结账、后台页都带 noindex，不进 sitemap）
-export const PUBLIC_PATHS = ['/', '/pricing', '/guides', '/contact', '/report', '/privacy-policy', '/terms-of-service', '/refund-policy', ...ARTICLE_PATHS]
+export const PUBLIC_PATHS = ['/', '/pricing', '/guides', '/contact', '/report', ...(site.aiMetadata.enabled ? ['/verify'] : []), '/privacy-policy', '/terms-of-service', '/refund-policy', ...ARTICLE_PATHS]
 
 // lastmod 按页面取：文章用各自的 updatedAt，/guides 随最新文章变化，其余页面用 site.seo.updatedAt
 function lastModified(path: string) {

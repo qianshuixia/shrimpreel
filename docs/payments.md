@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | `createCheckout(input)` | 用 `<X>_PRODUCTS[packageId]` 对应的商品创建收银台。`metadata` 至少带 `orderId` 和 `site`（`site.domain`），回跳地址用 `input.successUrl` | 没配置时抛 `ApiError(503, 'payment_not_configured')`，支付商报错时抛 `ApiError(502, 'payment_provider_error')`。错误信息不能带密钥 |
 | `verifyXxxWebhook(raw, …)` | 用原始请求体验签，并检查时间戳容差和 test/live 模式 | 抛 `WebhookVerificationError`，接口返回 401 `{"error":"invalid_webhook"}` |
-| `normalizeXxxEvent(payload)` | 映射成 `paid`、`refunded`、`failed` 或 `ignored` | 不认识的事件类型返回 `ignored`，不要抛错 |
+| `normalizeXxxEvent(payload)` | 映射成 `paid`、`refunded`、`failed`、`disputed`、`fraud_warning` 或 `ignored` | 不认识的事件类型返回 `ignored`，不要抛错 |
 | `refund(input)`（可选） | 只负责向支付商提交退款，返回退款单号；积分在退款 webhook 到达时才回收 | 业务冲突（余额不足、已退过）抛 409，带上支付商给的原因 |
 | `cancelSubscription`、`resumeSubscription`、`portalUrl`（可选） | 订阅的到期取消、撤销取消和客户门户地址，见下面的“订阅” | 支付商不支持时不实现，账单页会隐藏对应按钮或引导去门户 |
 | `fetchPaidEvent(order)`（可选） | 向支付商查这笔订单，只在明确付款成功时返回 `paid` 事件，字段和 webhook 的 paid 事件用同一套规则归一化。`eventId` 用 `reconcile:<支付商付款 ID>`，和 webhook 的事件 ID 不同，所以要靠积分流水的 `order:<id>` 幂等键防止重复入账 | 未付款、失败或处理中都返回 `null`，订单保持 pending；调用接口出错时直接抛错 |
@@ -64,6 +64,38 @@
 
 test 模式实测（2026-10-21，webhook 模式）：Waffo 月付首付、订阅激活、当月积分、门户地址、取消续费后回 `subscription.canceling` 全部通过；Dodo 首付、激活、积分和门户地址通过，取消续费因 test API Key 缺 Subscriptions 写入返回 403，还没验证。Stripe 沙盒 2026-10-24 实测：4 个用例在有 webhook 时全部通过，订阅状态事件可能先于 `invoice.paid` 到达，此时 `customer.subscription.created` 记为 ignored，后续的 `updated` 会补上状态。test 模式触发不了续费和扣款失败，这两条只由单元测试和 mock e2e 覆盖。
 
+## 争议与拒付
+
+持卡人向发卡行拒付后，支付商会发争议事件。归一化为 `kind: 'disputed'`（`disputeId`、`stage`、`amountCents`、`reason`）和 `kind: 'fraud_warning'`，由 `processPaymentEvent` 落库，订单靠 `providerPaymentId` 反查（Stripe 是 `payment_intent`，和付款事件存的一致；争议对象里 `payment_intent` 为空时 webhook 路由先取 Charge 补上）。
+
+| 阶段 | 触发 | 处理 |
+| --- | --- | --- |
+| `opened` | 争议创建 | 同一个 batch 里回收订单剩余未退的积分（幂等键 `dispute:<争议号>`，最多扣到 0，订阅订单只扣自己那批），订单记 `dispute_status='open'`、`dispute_credits`（实际回收量，已计入 `refunded_credits`，所以争议期间的退款不会二次回收），发管理员邮件和聊天群通知 |
+| `won` | 胜诉 | 补回 `dispute_credits`（幂等键 `dispute_won:<争议号>`，订阅订单沿用原批次的到期时间，已过期不补），`refunded_credits` 同步减回，`dispute_status='won'` |
+| `closed` | 争议未成立就关闭、资金留在商户（Stripe `warning_closed`、`prevented`，Dodo `cancelled`） | 同 `won`。判断依据：资金没有被扣走，积分没有理由继续扣着 |
+| `lost` | 败诉（Dodo 的 `accepted`、`expired` 也算） | `dispute_status='lost'`，订单记为 `refunded`、退款金额补满实收；积分在 `opened` 时已回收，不二次回收；邀请奖励照退款规则回收 |
+| `fraud_warning` | Stripe 欺诈预警（`actionable=true`） | 站点开关 `fraudWarningAutoRefund` 默认关闭：只通知管理员（写明“未自动退款”），由管理员在后台核对后退款。开启后，订单还有可退金额且没有进行中的争议时，调用该支付商的 `refund()` 全额退剩余（先过 `assertProviderRefundAllowed`），积分等之后的退款 webhook 回收，和后台退款一样；退款被拒（409）只在通知里写原因，网络类错误抛出让支付商重试。始终通知管理员 |
+
+边界：
+
+- 乱序：`lost` 先于 `opened` 到达会先回收再记败诉；`opened` 晚于 `won` / `lost` 到达是 `duplicate`；争议先于付款到达抛错记为 `failed`，同退款。
+- 一张订单只跟踪一个争议：别的争议还在处理中、或订单已败诉退款时，新争议事件返回 `ignored`（`note` 里有原因）。
+- 开启期间已经退过款的订单，胜诉不补回积分（钱已经退给买家）。
+- 找不到订单的争议返回 `ignored`（`order not found`），和找不到订单的退款一致：多个站可能共用商户号，不能让支付商对别站的事件无限重试。
+- 管理员邮件模板 `admin_dispute`（固定中文），同一争议同一阶段只发一次；后台订单详情显示争议状态，列表状态列显示“争议中”。
+- 本地和 e2e：`POST /api/mock-payments/complete` 的 `outcome` 支持 `dispute_opened`、`dispute_won`、`dispute_lost`、`dispute_closed`、`fraud_warning`（`disputeId` 可选）。
+
+各支付商：
+
+| | Stripe | Dodo | Waffo |
+| --- | --- | --- | --- |
+| 要订阅的事件 | `charge.dispute.created`、`charge.dispute.closed`、`radar.early_fraud_warning.created`（`charge.dispute.updated`、`funds_withdrawn` 等不用订阅，收到也是 ignored） | `dispute.opened`、`dispute.won`、`dispute.lost`、`dispute.accepted`、`dispute.expired`、`dispute.cancelled`（`dispute.challenged` 不改变资金，收到是 ignored） | 无：官方 webhook 只有订单、订阅和 `refund.*` 事件，没有文档化的拒付 / 争议事件，所以不处理。Waffo 的拒付要在 Waffo 后台发现后，用后台“退款 → 仅记账”手动回收积分 |
+| 字段 | `charge.dispute.*` 的对象是 Dispute：`id`、`payment_intent`（可空）、`charge`、`amount`、`reason`、`status`（closed 时 `won` / `lost` / `warning_closed` / `prevented`）；EFW 对象带 `payment_intent`、`actionable` | `data` 是 Dispute：`dispute_id`、`payment_id`、`amount`（字符串，文档没写单位，所以只用于展示、不当作分使用）、`dispute_stage`、`dispute_status`、`reason` | — |
+| `created` 时的 `warning_needs_response` | 询单阶段（资金还没扣）也按 `opened` 回收积分，`warning_closed` 时补回 | — | — |
+| 文档 | [Dispute object](https://docs.stripe.com/api/disputes/object)、[Disputes API](https://docs.stripe.com/disputes/api)、[Early fraud warning](https://docs.stripe.com/api/radar/early_fraud_warnings/object) | [Dispute webhooks](https://docs.dodopayments.com/developer-resources/webhooks/intents/dispute)、[Dispute 对象](https://docs.dodopayments.com/api-reference/disputes/get-disputes-1) | [Webhooks](https://docs.waffo.ai/api-reference/webhooks) |
+
+`scripts/stripe-setup.mjs`、`scripts/dodo-setup.mjs` 的 `--webhook` 已按上表订阅这些事件；已经建好的 webhook 端点要重跑 `--apply --webhook <url> --webhook-id <id>` 更新，或在支付商后台手动勾选。争议处理逻辑只按文档构造的 payload 单元测试过，没有用真实 payload 核对。
+
 ## webhook 返回码
 
 支付商对非 2xx 响应会重试，返回码要按下表区分：
@@ -75,7 +107,8 @@ test 模式实测（2026-10-21，webhook 模式）：Waffo 月付首付、订阅
 | 不处理的事件类型、找不到订单的退款或失败事件、其他站点的订单 | `ignored` | 200 | 多个站可能共用一个商户号，不能让支付商对别站的事件无限重试 |
 | 找不到订单的付款 | `orphan` | 200 | 不入账，触发“付款待核对”告警，人工处理 |
 | 金额或商品对不上 | `mismatch` | 200 | 不入账，记下支付商流水号，触发告警。核实后在后台补单，或到支付商后台退款 |
-| 退款先于付款到达，或数据库出错 | 抛错，事件记为 `failed` | 500 | 让支付商稍后重试，付款入账后这笔退款照常回收积分 |
+| 争议、欺诈预警：找不到订单，或订单已有别的争议 | `ignored` | 200 | 同上，见“争议与拒付” |
+| 退款（或争议）先于付款到达，或数据库出错 | 抛错，事件记为 `failed` | 500 | 让支付商稍后重试，付款入账后这笔退款照常回收积分 |
 | 签名错误 | — | 401 | |
 
 `payment_events` 里已有 `failed` 记录的事件，重新投递时会再处理一次，其他状态的直接返回 `duplicate`。
@@ -85,7 +118,7 @@ test 模式实测（2026-10-21，webhook 模式）：Waffo 月付首付、订阅
 - API 请求固定 `Stripe-Version`（`STRIPE_API_VERSION`，见 `src/server/payments/stripe.ts`）。webhook payload 的版本由 webhook 端点决定，可能和账户默认版本不同，所以 `checkout.session.*` 和 `invoice.paid` 验签后先用固定版本重新取对象（展开 `line_items`、`payments`）再归一化；取不到时返回 502，Stripe 会重试。查单走同一套归一化。
 - `STRIPE_PRODUCTS` 存的是 Price ID（`price_...`）。积分包用一次性价格，订阅套餐用 recurring 价格，后台“测试连接”会逐个核对。
 - 验签：`Stripe-Signature` 里的 `v1` 是 `HMAC-SHA256(whsec_..., "<t>.<原始请求体>")` 的 hex，容差 5 分钟，轮换密钥期间多个 `v1` 任一匹配即可。payload 的 `livemode` 必须和 `STRIPE_ENVIRONMENT` 一致，上线检查还会核对 Key 前缀（`sk_test_` / `sk_live_`）。
-- webhook 要订阅的事件：`checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`refund.created`、`refund.updated`；开了订阅再加 `invoice.paid`、`customer.subscription.created`、`customer.subscription.updated`、`customer.subscription.deleted`。`scripts/stripe-setup.mjs --webhook <url>` 会按这个列表建端点。
+- webhook 要订阅的事件：`checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`refund.created`、`refund.updated`、`charge.dispute.created`、`charge.dispute.closed`、`radar.early_fraud_warning.created`（争议见下面的“争议与拒付”）；开了订阅再加 `invoice.paid`、`customer.subscription.created`、`customer.subscription.updated`、`customer.subscription.deleted`。`scripts/stripe-setup.mjs --webhook <url>` 会按这个列表建端点。
 - 受限 Key（`rk_`）运行时需要的权限：Checkout Sessions 写、Invoices 读、Prices 读（测试连接）、Refunds 写、Subscriptions 写、Customer portal 写。
 - 退款没有固定期限，可多次部分退款。退款从 Stripe 余额扣，余额不足时挂起为 pending，等变成 succeeded 再回收积分。退款之后又失败（`refund.failed`）时积分已回收，不会自动恢复，需要人工处理。
 - 异步付款方式（银行转账等）在 `checkout.session.completed` 时还是 unpaid，等 `async_payment_succeeded` 才入账。

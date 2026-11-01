@@ -30,6 +30,7 @@ export function configBindings(config) {
     ...(config.queues?.producers ?? []).map((q) => q.binding),
     ...(config.ratelimits ?? []).map((r) => r.name),
     ...(config.send_email ?? []).map((e) => e.name),
+    config.media?.binding,
   ].filter(Boolean)
 }
 

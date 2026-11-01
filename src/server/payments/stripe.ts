@@ -9,6 +9,7 @@ import { minorToDisplay } from './amount'
 import type {
   CheckoutInput,
   CheckoutResult,
+  DisputeStage,
   PaidLookup,
   PaymentEvent,
   PaymentProvider,
@@ -184,6 +185,15 @@ export async function expandStripeEvent(env: Env, event: Json): Promise<Json> {
   let fresh: Json | null = null
   if (type.startsWith('checkout.session.') && type !== 'checkout.session.expired') fresh = await getCheckoutSession(call, id)
   else if (type === 'invoice.paid') fresh = await getInvoice(call, id)
+  else if (type === 'charge.dispute.created' || type === 'charge.dispute.closed' || type === 'radar.early_fraud_warning.created') {
+    // payment_intent 可能为 null（只有 charge）：取 Charge 补上，订单是按 payment_intent 存的
+    const chargeId = idOf(object.charge)
+    if (!idOf(object.payment_intent) && chargeId) {
+      const charge = await call('GET', `/charges/${encodeURIComponent(chargeId)}`, undefined, { notFound: 'null' })
+      const paymentIntent = idOf(charge?.payment_intent)
+      if (paymentIntent) return { ...event, data: { ...record(event.data), object: { ...object, payment_intent: paymentIntent } } }
+    }
+  }
   return fresh ? { ...event, data: { ...record(event.data), object: fresh } } : event
 }
 
@@ -299,6 +309,32 @@ export function normalizeStripeEvent(event: Json): PaymentEvent {
         refundAmountCents: int(object.amount),
         originalAmountCents: null,
       }
+    // 拒付：Dispute 对象带 charge 和可能为 null 的 payment_intent（webhook 路由先用 expandStripeEvent 补上），订单靠 payment_intent 反查。
+    // created 时的 status 可能是 warning_needs_response（询单，资金还没扣）或 needs_response；closed 的终态：
+    // won / lost 按结果，warning_closed（询单关闭）和 prevented（被阻止成为拒付）资金留在商户，按 closed 处理
+    // https://docs.stripe.com/api/disputes/object  https://docs.stripe.com/disputes/api
+    case 'charge.dispute.created':
+    case 'charge.dispute.closed': {
+      const disputeId = str(object.id)
+      if (!disputeId) return { kind: 'ignored', eventId, eventType }
+      const stage: DisputeStage | null = eventType === 'charge.dispute.created' ? 'opened' : (STRIPE_DISPUTE_CLOSED[String(object.status)] ?? null)
+      if (!stage) return { kind: 'ignored', eventId, eventType }
+      return {
+        kind: 'disputed',
+        eventId,
+        eventType,
+        orderId: null,
+        providerPaymentId: idOf(object.payment_intent),
+        disputeId,
+        stage,
+        amountCents: int(object.amount),
+        reason: str(object.reason),
+      }
+    }
+    // 发卡行欺诈预警：https://docs.stripe.com/api/radar/early_fraud_warnings/object （actionable = 还没拒付也没全额退款）
+    case 'radar.early_fraud_warning.created':
+      if (object.actionable === false) return { kind: 'ignored', eventId, eventType }
+      return { kind: 'fraud_warning', eventId, eventType, orderId: null, providerPaymentId: idOf(object.payment_intent) }
     default:
       // 订阅状态：created / updated / deleted 等事件的对象都是完整订阅，统一按其中的状态处理
       // https://docs.stripe.com/billing/subscriptions/webhooks
@@ -324,6 +360,8 @@ export function normalizeStripeEvent(event: Json): PaymentEvent {
       return { kind: 'ignored', eventId, eventType }
   }
 }
+
+const STRIPE_DISPUTE_CLOSED: Record<string, DisputeStage> = { won: 'won', lost: 'lost', warning_closed: 'closed', prevented: 'closed' }
 
 // unpaid：重试用尽仍未付款（按后台设置保留订阅）；incomplete（首付未完成）、paused 不改本地状态
 const STRIPE_STATUS: Record<string, SubscriptionStatus> = {
