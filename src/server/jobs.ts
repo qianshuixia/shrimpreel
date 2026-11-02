@@ -11,6 +11,7 @@ import { nowIso } from './util'
 import { getVideoProvider } from './video'
 import { videoModelName } from './video/model-name'
 import { VideoProviderError } from './video/types'
+import { addStyleMusic } from './music'
 import { tagOutputWithXmp } from './xmp'
 
 const JOB_TIMEOUT_MINUTES = 45
@@ -220,6 +221,9 @@ async function pollGeneration(env: Env, generation: GenerationRow) {
     }
     await env.MEDIA.put(outputKey, await source.arrayBuffer(), { httpMetadata: { contentType: 'video/mp4' } })
   }
+  // 风格配了背景音乐：先混流再审核和打 XMP，这样审核看到的就是最终成片；失败只 warn，成片保持原样
+  const musicFile = findStyle(generation.template_id)?.music?.[generation.duration_id]
+  if (musicFile) await addStyleMusic(env.MEDIA, outputKey, musicFile, generation.id)
   const now = nowIso()
   // 审核服务不可用时抛错，队列重试（不判失败）；不通过则删掉成片、失败退积分
   const verdict = await moderateOutput(env, generation, outputKey)

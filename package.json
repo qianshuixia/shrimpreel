@@ -32,6 +32,7 @@
     "@tanstack/router-plugin": "1.168.47",
     "hono": "4.13.13",
     "lucide-react": "1.21.0",
+    "mediabunny": "1.65.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "tailwindcss": "4.3.1",

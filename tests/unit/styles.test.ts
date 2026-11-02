@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { ARTICLES, LOCALES, STYLES, defaultStyle, findStyle, site } from '#/config/site'
 import { loadContent } from '#/lib/i18n'
@@ -22,6 +23,18 @@ describe('site.styles', () => {
       }
     }
     expect(new Set(files).size).toBe(files.length)
+  })
+
+  it('配了背景音乐的风格覆盖所有时长档位，文件是 seed/templates/ 里存在的 .m4a', () => {
+    for (const style of STYLES) {
+      if (!style.music) continue
+      for (const d of site.durations) {
+        const file = style.music[d.id]
+        expect(file, `${style.id} 缺 ${d.id} 的背景音乐`).toBeTruthy()
+        expect(file, `${style.id}/${d.id}`).toMatch(/\.m4a$/)
+        expect(existsSync(`seed/templates/${file}`), `seed/templates/${file} 不存在`).toBe(true)
+      }
+    }
   })
 
   it('每个风格在每种语言都有展示名和介绍', async () => {

@@ -45,7 +45,7 @@ https://github.com/user-attachments/assets/895aab94-d0c9-474e-8d90-61a6c551e536
 ```bash
 npm install
 cp .dev.vars.example .dev.vars       # 至少填 SESSION_SECRET
-npm run seed:local                   # 应用 D1 迁移 + 把 seed/templates/ 的 mp4 和 jpg 上传到本地 R2
+npm run seed:local                   # 应用 D1 迁移 + 把 seed/templates/ 的 mp4、jpg 和 m4a 上传到本地 R2
 npm run dev -- --host 127.0.0.1      # http://127.0.0.1:3000
 ```
 
@@ -90,6 +90,7 @@ npm run dev -- --host 127.0.0.1      # http://127.0.0.1:3000
    - 加一种语言：在 `site.ts` 的 `LOCALES` 和 `LOCALE_META` 里登记，新建 `src/content/<locale>.ts`（类型与 `en.ts` 一致），再在 `src/lib/i18n.ts` 的 `loaders` 里加一行动态 import。
 4. **换素材**：
    - `seed/templates/<风格 id>-<秒数>s.mp4`：生成用的源视频，每种风格的每个时长档位一段（`site.styles[].sources`），部署后上传到 R2 的 `templates/`。
+   - `seed/templates/<风格 id>-<秒数>s.m4a`（可选）：背景音乐，每种风格的每个时长档位一段 AAC（`site.styles[].music`，键 = `durations[].id`，默认 `null`）。配了之后，成片存进 R2 后服务端用纯 JS（`mediabunny`，视频流逐包拷贝、不重编码）把成片原有音轨换成这段音乐，发生在审核和 XMP 标记之前。每段时长应等于档位且结尾自带淡出，超出视频时长的音频会被丢掉。和源视频一样上传，`--content-type audio/mp4`。任何一步失败（R2 里缺文件、成片超过 48 MB、MP4 读不了）都保持服务商出的原样，任务照常成功。音乐必须拥有商用授权（例如自己生成、条款允许商用的 AI 音乐），不能用别人的歌。站点文案若写着视频无声，要同步改。
    - `public/demo/*`：首页展示视频和海报。必须是自有或已获授权的素材，在 `site.styles[].examples.*.credit` 写明来源。
    - `public/og.png`、`public/favicon.svg`。
    - **多种舞蹈风格**（可选）：在 `site.styles` 里加项。每项有 `id`（写入 `generations.template_id`，发布后不要改）、`sources`（每个 `durations[].id` 一个文件）、`prompt`（`null` = 用 `video.yir.prompt` / `video.nanoapi.prompt`）、`scene`（yir 两步走的 `{ frame, prompt }`，`null` = 单步）和 `examples`（`original`、`aiVersions`、`madeWith`）。第一项是默认风格。同时在 `en.ts`、`zh.ts` 补 `styles['<id>'] = { name, tagline }`。只有一种风格时界面没有风格选择；多于一种时生成器出现选择（`/?style=<id>` 预选），首页 hero 出现风格标签，“Made with”每种风格一行。
@@ -136,6 +137,7 @@ npx wrangler queues create <name>-jobs
 npx wrangler queues create <name>-jobs-dlq
 npm run db:migrate:remote                      # 0003 保留期、举报下架和图片拉黑；0004 邮件发件箱
 npx wrangler r2 object put <name>-media/templates/<file>.mp4 --file seed/templates/<file>.mp4 --content-type video/mp4 --remote
+npx wrangler r2 object put <name>-media/templates/<file>.m4a --file seed/templates/<file>.m4a --content-type audio/mp4 --remote   # 背景音乐（如有）
 ```
 
 - `ratelimits[].namespace_id` 在同一账号内要唯一，多个站点不要共用同一组数字。
@@ -188,6 +190,7 @@ npx wrangler r2 bucket lifecycle add video-template-staging-media expire-uploads
 npx wrangler r2 bucket lifecycle add video-template-staging-media expire-outputs outputs/ --expire-days 31
 npx wrangler d1 migrations apply DB --remote -c wrangler.staging.jsonc
 npx wrangler r2 object put video-template-staging-media/templates/<file>.mp4 --file seed/templates/<file>.mp4 --content-type video/mp4 --remote
+npx wrangler r2 object put video-template-staging-media/templates/<file>.m4a --file seed/templates/<file>.m4a --content-type audio/mp4 --remote   # 背景音乐（如有）
 npm run doctor -- -c wrangler.staging.jsonc                 # 部署前体检
 npx vite build --mode staging && npx wrangler deploy         # deploy 读取构建产物里的 staging 配置
 node scripts/sync-secrets.mjs -c wrangler.staging.jsonc --file .dev.vars.staging --apply   # 或逐个 wrangler secret put <NAME> -c wrangler.staging.jsonc
@@ -278,7 +281,7 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
   - 后台概览显示近 30 天的服务商成本、消耗积分折算的收入和估算毛利；生成列表逐条显示成本和毛利。每积分实收 = USD 已支付订单的净实收 ÷ 未回收的积分。实际扣费以服务商账单为准。
 - **视频服务商**：`VIDEO_PROVIDER` 可选 `fal`（默认）、`yir`、`nanoapi` 或 `mock`。[yir.ai](https://yir.ai/?ref=qianshuixia) 是图片视频 API 网关，启用方法：`VIDEO_PROVIDER=yir`，secret 写 `YIR_API_KEY`，模型和提示词在 `site.video.yir` 里改（`src/server/video/yir.ts`）。
   - yir 没有模板所用的角色替换模型（`wan/v2.2-14b/animate/replace`）。接入用的是 Kling 2.6 Motion Control（reference 模式：照片 + 模板源视频），模板只交付接入代码，没有用真实 key 实测（提交、状态查询和错误映射由单元测试覆盖），效果和单价要自己验证，`costCentsPerSecond: 7` 只是估算，上线前按 [yir 模型页](https://yir.ai/models) 的报价改。
-  - 两步走（可选，按风格配 `site.styles[].scene = { frame, prompt }`，默认 `null`；图片模型等共用参数在 `site.video.yir.sceneImage`）：Motion Control 的成片背景取自用户照片。想保留源视频的场景，就先用图片模型（如 `google/nano-banana-2`）把照片里的人合成进源视频首帧，再拿合成图做动作参考。首帧图放在 `seed/templates/`，和源视频一样上传到 R2 的 `templates/`（`--content-type image/jpeg`）。合成图会传进 yir Files API，第二步用固定的 `file_id` 引用，重新提交时请求体不变。每单多一张图的费用（`sceneImage.costCents`），用户照片也会经过图片模型的渠道。
+  - 两步走（可选，按风格配 `site.styles[].scene = { frame, prompt }`，默认 `null`；图片模型等共用参数在 `site.video.yir.sceneImage`）：Motion Control 的成片背景取自用户照片。想保留源视频的场景，就先用图片模型（如 `google/nano-banana-2`）把照片里的人合成进源视频首帧，再拿合成图做动作参考。首帧图放在 `seed/templates/`，和源视频一样上传到 R2 的 `templates/`（`--content-type image/jpeg`）。背景音乐（`site.styles[].music`，`.m4a`）同样上传，`--content-type audio/mp4`。合成图会传进 yir Files API，第二步用固定的 `file_id` 引用，重新提交时请求体不变。每单多一张图的费用（`sceneImage.costCents`），用户照片也会经过图片模型的渠道。
   - 提交时用任务 id 作 `Idempotency-Key`：队列重投或 Worker 中断后重新提交，拿回的是同一个 yir 任务，不会重复计费。yir 按请求体识别同一请求，所以照片签名地址按任务创建时间生成，有效期 2 小时，重新提交时地址不变。
   - 没有用 `max_cost` 给单个任务封顶：yir 对用 URL 引用的素材拒绝 `max_cost`。Motion Control 按参考视频秒数计费，而模板源视频的时长是固定的，单价本身就有上限。整体花费建议在 yir Console 给这个 API Key 设月度额度，超出后提交返回 `YIR_SPEND_LIMIT_EXCEEDED`。
   - yir 除了官方渠道，还可能把任务路由到第三方渠道，用户照片会发给它们。`site.video.yir.routingOnly` 默认 `null`，按 API Key 的 Routing Profile 选渠道，失败时可以换渠道。填渠道 ID（如 `['official']`）后只在这些渠道里选，它们都失败时任务失败。不管选哪种，隐私政策都要列出实际经过的渠道。

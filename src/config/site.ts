@@ -46,6 +46,10 @@ export const site = {
       // yir 两步走（可选）：先用图片模型把照片里的人合成进源视频首帧，再拿合成图做动作参考，成片保留源视频的场景。
       // null = 单步，直接用用户照片做参考，背景会变成照片的背景。图片模型等共用参数在 video.yir.sceneImage
       scene: null as StyleScene | null,
+      // 背景音乐（可选）：键 = durations[].id，值 = seed/templates/ 里的 .m4a（AAC）文件名，和源视频一样上传到 R2 的 templates/。
+      // 每个档位一段，时长等于档位且结尾自带淡出；设了就替换成片原有的音轨（成片存进 R2 后在服务端混流，视频不重编码）。
+      // null = 成片保持服务商原样。键是否覆盖所有档位由 tests/unit/styles.test.ts 核对（类型上不能引用 durations，会循环）。音乐必须拥有商用授权（例如自己生成、条款允许商用的 AI 音乐），不能用别人的歌。
+      music: null as Readonly<Record<string, string>> | null,
       // 首页展示素材（public/demo/）。换成真实素材时必须拥有授权，credit 写原作者，例如 '@handle · TikTok'。
       examples: {
         original: { video: '/demo/original.mp4', poster: '/demo/original.jpg', credit: 'Demo clip · original' },
@@ -262,6 +266,7 @@ export interface Style {
   sources: Readonly<Record<DurationOption['id'], string>> // 键 = durations[].id，值 = seed/templates/ 里的文件名
   prompt: string | null
   scene: StyleScene | null
+  music: Readonly<Record<string, string>> | null // 键 = durations[].id，值 = seed/templates/ 里的 .m4a 文件名；null = 不加背景音乐
   examples: {
     original: ExampleClip
     aiVersions: readonly ExampleClip[]

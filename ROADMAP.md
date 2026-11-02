@@ -31,6 +31,7 @@
 - P1-9 交易邮件已在本地完成（Cloudflare Email Service，D1 发件箱去重、退避重试、后台邮件页），工件在 `.tmp/transactional-email/`。说明见 README 的“交易邮件”。随后加了可选的 Resend 发信渠道（`RESEND_API_KEY`，单元测试覆盖，未实测真实发信）。
 - 监控告警已在本地完成：Cron 健康检查（生成失败率、死信、积压、支付回调、付款待核对、邮件），按 6 小时时间桶去重发给 `ADMIN_EMAILS`；死信队列由同一 Worker 消费，判失败并退积分。说明见 README 的“监控告警”。
 - GA4 同意横幅已在本地完成：Consent Mode v2 basic 模式，接受前不加载 gtag.js，撤回时删除 `_ga` 系列 Cookie；页脚可重新打开；隐私政策按统计配置自动调整。默认配置不启用 GA4（推荐 Cloudflare Web Analytics），浏览器流程用临时 `ga4Id` 验证过一次。说明见 README 的“合规与内容安全”。
+- 按风格可选的背景音乐（2026-11-02，本地完成）：`site.styles[].music`（默认 `null`）每个时长档位一段 AAC（m4a，seed/templates/ → R2 `templates/`）；成片存进 R2 后、审核和 XMP 之前，`src/server/music.ts` 用 `mediabunny` 纯 JS 混流（视频包原样拷贝，换掉原有音轨），期间 etag 变了、文件缺失、成片超过缓冲上限或 MP4 读不了都只 warn 跳过，不影响生成和积分。单元测试覆盖混流结果与跳过路径；未验证：真实 provider 成片和 Workers 运行时里的耗时与内存（本地 Node 约 25ms），也没有 e2e。
 - 文章封面已完成（2026-10-26）：`site.articles[].cover` 可选，用在 `/guides` 卡片、文章顶部、`og:image` 和 Article `image`；`scripts/article-cover.mjs` 从站点视频截帧生成 1200×630 封面（2026-10-27 起带标题、分类标签、品牌名和 6 种版式）；e2e 覆盖 SPA 切换后 `og:image` 不残留。
 - 可选的 Umami 统计已完成并在 christmasdanceai 上线（2026-10-26）：只有 production 上报，`/admin` 不上报；`analytics.umamiWebsiteId` 加 `UMAMI_ORIGIN`，Worker 同域代理 `/s/script.js` 和 `/s/api/send`（不转发 Cookie、只回传状态码 / body / Content-Type、5 秒超时 502），实例域名不进前端；隐私政策按配置调整，单元测试覆盖。说明见 README 的“统计与 Cookie”。
 - 同意横幅改为按地区（2026-10-31）：欧洲经济区、英国、瑞士和无法判断国家的访客默认关闭统计 Cookie 并弹横幅，其他地区默认开启、不弹横幅，页脚可拒绝。依据：竞品（JibJab、Elf Yourself、Kling、CapCut 等）对美国访客都不弹横幅；之前全球弹横幅时，不点横幅的大部分访客不进 GA，漏斗看不全。单元测试覆盖国家判断和默认值，本地带 `cf-ipcountry` 实测，工件在 `.tmp/geo-consent/`。

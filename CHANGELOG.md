@@ -4,6 +4,27 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-02
+
+### Added: optional per-style background music
+
+- `site.styles[].music` (default `null`): one AAC file (`.m4a`, in `seed/templates/`, uploaded to R2 `templates/` like the source videos) per duration id. When set, after the video is stored in R2 and before output moderation and the XMP label, the server replaces the video's audio track with that music in pure JS (`mediabunny`, MPL-2.0; the video stream is copied as is, not re-encoded; `src/lib/music-mux.ts`, `src/server/music.ts`). It never fails a job or refunds credits: a missing music file, an object changed meanwhile, a video over 48 MB or an unreadable MP4 only logs a warning and leaves the video as the provider made it. With `music: null` nothing changes. The Worker bundle grows by roughly 0.5 MB.
+
+Upgrading a site: merge upstream, then
+1. If `src/config/site.ts` conflicts, add `music: null as Readonly<Record<string, string>> | null` to every style.
+2. To enable it: put one `.m4a` per duration in `seed/templates/` (as long as the duration, fading out at the end), set `music: { short: '…m4a', … }`, and upload each with `npx wrangler r2 object put <name>-media/templates/<file>.m4a --file seed/templates/<file>.m4a --content-type audio/mp4 --remote`.
+3. You must own a commercial license for the music (for example AI music you generated under terms that allow commercial use), never someone else's song.
+4. If your site copy says the generated videos are silent, update it.
+
+新增：按风格可选的背景音乐。
+- `site.styles[].music`（默认 `null`）：每个时长档位一段 AAC（`.m4a`，放在 `seed/templates/`，和源视频一样上传到 R2 的 `templates/`）。配了之后，成片存进 R2 后、输出审核和 XMP 标记之前，服务端用纯 JS（`mediabunny`，MPL-2.0；视频流原样拷贝、不重编码；`src/lib/music-mux.ts`、`src/server/music.ts`）把成片原有音轨换成这段音乐。任何情况下都不会让任务失败或退积分：音乐文件缺失、期间成片被改写、成片超过 48 MB、MP4 读不了，都只记 warn、成片保持服务商原样。`music: null` 时行为不变。Worker 产物大约增加 0.5 MB。
+
+站点升级：合并 upstream，然后
+1. `src/config/site.ts` 合并冲突时，给每个风格补上 `music: null as Readonly<Record<string, string>> | null`。
+2. 要启用：每个时长档位放一段 `.m4a` 到 `seed/templates/`（时长等于档位、结尾自带淡出），配置 `music: { short: '…m4a', … }`，再逐个上传：`npx wrangler r2 object put <name>-media/templates/<file>.m4a --file seed/templates/<file>.m4a --content-type audio/mp4 --remote`。
+3. 音乐必须拥有商用授权（例如自己生成、条款允许商用的 AI 音乐），不能用别人的歌。
+4. 站点文案若写着生成的视频无声，要同步改。
+
 ## 2026-11-01
 
 ### Added: machine-readable AI label, verify page, output moderation, consent records and dispute handling
