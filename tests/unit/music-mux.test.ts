@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { ALL_FORMATS, BufferSource, BufferTarget, EncodedPacketSink, EncodedVideoPacketSource, Input, Mp4OutputFormat, Output } from 'mediabunny'
 import { muxMusic } from '#/lib/music-mux'
 
-const video = new Uint8Array(readFileSync('seed/templates/neon-shuffle-v1-6s.mp4'))
+const video = new Uint8Array(readFileSync('tests/fixtures/video-6s.mp4'))
 const music = new Uint8Array(readFileSync('tests/fixtures/music-6s.m4a'))
 
 const open = (bytes: Uint8Array) => new Input({ source: new BufferSource(bytes), formats: ALL_FORMATS })

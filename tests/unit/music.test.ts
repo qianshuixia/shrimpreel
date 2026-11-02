@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ALL_FORMATS, BufferSource, Input } from 'mediabunny'
 import { addStyleMusic } from '#/server/music'
 
-const video = new Uint8Array(readFileSync('seed/templates/neon-shuffle-v1-6s.mp4'))
+const video = new Uint8Array(readFileSync('tests/fixtures/video-6s.mp4'))
 const music = new Uint8Array(readFileSync('tests/fixtures/music-6s.m4a'))
 
 // 内存版 R2：支持 head / get(onlyIf) / put(onlyIf)，对象带 httpMetadata

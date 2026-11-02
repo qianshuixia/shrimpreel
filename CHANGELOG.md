@@ -16,6 +16,8 @@ Upgrading a site: merge upstream, then
 3. You must own a commercial license for the music (for example AI music you generated under terms that allow commercial use), never someone else's song.
 4. If your site copy says the generated videos are silent, update it.
 
+The music unit tests use their own fixtures in `tests/fixtures/` (`video-6s.mp4`, `music-6s.m4a`), so they pass in sites that replaced the template source videos.
+
 新增：按风格可选的背景音乐。
 - `site.styles[].music`（默认 `null`）：每个时长档位一段 AAC（`.m4a`，放在 `seed/templates/`，和源视频一样上传到 R2 的 `templates/`）。配了之后，成片存进 R2 后、输出审核和 XMP 标记之前，服务端用纯 JS（`mediabunny`，MPL-2.0；视频流原样拷贝、不重编码；`src/lib/music-mux.ts`、`src/server/music.ts`）把成片原有音轨换成这段音乐。任何情况下都不会让任务失败或退积分：音乐文件缺失、期间成片被改写、成片超过 48 MB、MP4 读不了，都只记 warn、成片保持服务商原样。`music: null` 时行为不变。Worker 产物大约增加 0.5 MB。
 
@@ -24,6 +26,8 @@ Upgrading a site: merge upstream, then
 2. 要启用：每个时长档位放一段 `.m4a` 到 `seed/templates/`（时长等于档位、结尾自带淡出），配置 `music: { short: '…m4a', … }`，再逐个上传：`npx wrangler r2 object put <name>-media/templates/<file>.m4a --file seed/templates/<file>.m4a --content-type audio/mp4 --remote`。
 3. 音乐必须拥有商用授权（例如自己生成、条款允许商用的 AI 音乐），不能用别人的歌。
 4. 站点文案若写着生成的视频无声，要同步改。
+
+背景音乐的单元测试用 `tests/fixtures/` 里自带的素材（`video-6s.mp4`、`music-6s.m4a`），站点换掉模板源视频后也能通过。
 
 ## 2026-11-01
 
