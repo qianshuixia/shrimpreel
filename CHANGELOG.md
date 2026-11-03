@@ -6,6 +6,19 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-11-02
 
+### Changed: the new-hot-site skill covers the newer site options
+
+- The `new-hot-site` skill and its brief now set `styles[].music`, `aiMetadata.enabled` and `fraudWarningAutoRefund`, and say what accepting pet photos takes: a pet branch in the scene and video prompts (a real animal with its own paws and tail, no human hands), one real test per style before promising it, and matching upload, consent, terms and FAQ copy. Sample photos of pets or objects may be CC0 photos from Wikimedia Commons, labelled in `hero.creditNote` (`src/content/*.ts`).
+- `.playwright-mcp/` (Playwright MCP console logs) is ignored.
+
+Upgrading a site: merge upstream; nothing to change.
+
+变更：new-hot-site skill 覆盖较新的站点选项。
+- `new-hot-site` skill 和站点简介加上 `styles[].music`、`aiMetadata.enabled`、`fraudWarningAutoRefund` 的取值，并写明收宠物照片要做的事：首帧和视频 prompt 加宠物分支（保持真动物、用自己的爪子和尾巴、不出现人手），每种风格先用真实宠物照片实测一条再承诺，上传说明、同意框、条款和 FAQ 一起改。宠物、物品的示例照片可以用 Wikimedia Commons 上 CC0 的照片，在 `src/content/*.ts` 的 `hero.creditNote` 写清来源。
+- `.gitignore` 忽略 `.playwright-mcp/`（Playwright MCP 的 console 日志）。
+
+站点升级：合并 upstream 即可，不用改动。
+
 ### Added: optional per-style background music
 
 - `site.styles[].music` (default `null`): one AAC file (`.m4a`, in `seed/templates/`, uploaded to R2 `templates/` like the source videos) per duration id. When set, after the video is stored in R2 and before output moderation and the XMP label, the server replaces the video's audio track with that music in pure JS (`mediabunny`, MPL-2.0; the video stream is copied as is, not re-encoded; `src/lib/music-mux.ts`, `src/server/music.ts`). It never fails a job or refunds credits: a missing music file, an object changed meanwhile, a video over 48 MB or an unreadable MP4 only logs a warning and leaves the video as the provider made it. With `music: null` nothing changes. The Worker bundle grows by roughly 0.5 MB.

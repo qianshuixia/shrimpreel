@@ -19,6 +19,9 @@
 | 积分包与价格 | `site.packages` | 保留模板值 |
 | 时长档位 | `site.durations` | 保留模板值 |
 | 视频模型 | `site.video.falModel` 等 | 保留模板值 |
+| 照片主体 | 风格的 `prompt`、`scene.prompt`，文案里的上传说明、同意框和条款 | 只收一位成年人；收宠物见 SKILL.md 第 3 步 |
+| 背景音乐 | `site.styles[].music` | `null`；用户给了有商用授权的音乐才配 |
+| 面向欧盟用户 | `site.aiMetadata.enabled` | 不确定就按面向欧盟处理，打开 |
 | 主色 | 只记录 | `src/styles.css` 不在白名单里，改色要先问用户 |
 | 素材 | `public/demo/*`、`seed/templates/*`、`public/og.png`、`public/favicon.svg` | 占位素材 + `TODO(site)`，见 SKILL.md 第 5 步 |
 | 参考链接 | 只记录 | 用户给的趋势原视频、竞品链接，只用来理解趋势，不下载素材 |

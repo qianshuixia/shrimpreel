@@ -58,6 +58,10 @@ node scripts/new-site.mjs --keyword "<关键词>" --domain <域名> --keywords "
 - `packages`：积分包的积分数和价格。`id` 不要改，支付商商品映射（`*_PRODUCTS`）按 id 对应。
 - `durations`：时长档位和积分。源视频文件名在 `styles[].sources`（键 = 档位 id，文件名跟着风格 `id`），改了档位要同步每个风格的 `sources` 和 `seed/templates/` 的文件。
 - `video.falModel`、`video.costCentsPerVideoSecond`、`video.sourceFps`：换模型时三个一起核对，成本用来算毛利和告警。
+- 风格的 `prompt` 和 `scene`（yir 两步走的首帧图和合成 prompt）：按趋势写清要保留什么、换成什么。
+  - 照片主体默认只收一位成年人。简介要收宠物时，`scene.prompt` 和视频 `prompt` 都要写宠物分支：保持真动物，用自己的头、毛色、爪子和尾巴，后腿站立，不出现人手。每种风格用真实宠物照片各实测一条再在文案里承诺；效果差的风格（比如服装把宠物变成人形身体）在文案里如实写、不推荐。上传说明、同意框、条款和 FAQ 一起改。
+- `styles[].music`：每个时长档位一段有商用授权的 `.m4a`（做法见 CHANGELOG 2026-11-02）；没有就保持 `null`，文案不能说有配乐。
+- `aiMetadata.enabled`：面向欧盟用户的站打开（AI Act 第 50(2) 条，已上市系统宽限到 2026-12-02）。`fraudWarningAutoRefund` 保持 `false`，除非用户要求自动退款。
 - `theme`：简介指定了外观就选 `classic` 或 `acid`（见 `src/lib/theme.ts`），否则保留模板值。
 - `signupBonusCredits`、`signupBonusValidDays`（赠送积分有效期，0 = 永不过期）、`retention`、`takedownSlaHours`、`trendPlatform`。
 - `examples.*.credit`：换成真实素材后写原作者；还是占位素材就保留 “Demo clip”。
@@ -73,6 +77,7 @@ node scripts/new-site.mjs --keyword "<关键词>" --domain <域名> --keywords "
 - 没有 ffmpeg：把 `seed/templates/` 里的旧文件按新文件名复制一份，同样写上面两条 TODO。
 - 最后 `git rm` 掉 `seed/templates/` 里旧风格 `id` 的源视频，只留 `site.styles[].sources` 和 `site.styles[].scene.frame` 用到的文件。
 - 文章封面：`public/demo/` 定稿后，给每篇文章用 `node scripts/article-cover.mjs public/guides/<slug>.jpg --tag <分类> --title "<短标题>" [--layout …] <视频>@<秒> | <图片> …` 生成封面（选项见脚本开头）。按文章类型换版式，别全站一种：教程用 `before-after`（示例照片 → 对应成片），对比用 `vs`，规格、价格、排错用 `hero`，灵感用 `grid`；没有合适画面的主题（如穿搭）可以用 `full` 铺一张不含人物的配图。画面和标题不能暗示站点不支持的功能（如文章说不支持宠物，封面就不要放宠物）。在 `site.articles[].cover` 填 `/guides/<slug>.jpg`。删掉模板带来的、已不用的旧封面文件。
+- 示例照片：人物用 AI 生成的虚构人物或本人授权的照片；宠物、物品可以用 Wikimedia Commons 上 CC0 的真实照片。哪些是 AI 生成、哪些是真实照片，在 `src/content/*.ts` 的 `hero.creditNote` 写清楚。
 - 不要从网上下载趋势视频当素材，版权和肖像权都过不去。
 
 ### 6. wrangler vars 先不动
