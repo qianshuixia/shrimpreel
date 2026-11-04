@@ -195,6 +195,22 @@
   .prose-article ul {
     @apply list-disc;
   }
+  .prose-article table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .prose-article th,
+  .prose-article td {
+    @apply min-w-28 border-b border-line px-3 py-2 align-top leading-6;
+  }
+  .prose-article thead th {
+    @apply font-medium text-muted;
+  }
+  .prose-article tbody th {
+    @apply font-medium text-fg;
+  }
+  .prose-article td {
+    @apply text-fg/85;
+  }
   .prose-article ol {
     @apply list-decimal;
   }

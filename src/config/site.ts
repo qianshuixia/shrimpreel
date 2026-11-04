@@ -190,6 +190,7 @@ export const site = {
   // 用 scripts/article-cover.mjs 从站点自己的视频截帧生成（带标题、标签，可选多种版式）。不填时卡片没有图，og:image 用站点默认图
   // style 可选：填 styles[].id，文章页在导语后显示该风格的原片和 AI 样片，文末按钮跳到 /?style=<id>#create 预选风格；id 不存在就当没填
   // 文章正文的 faq 可选（content 的 articles[key].faq）：有就在正文后渲染折叠问答并输出 FAQPage 结构化数据
+  // 段落的 table 可选（sections[i].table，{ head, rows }）：渲染在该段文字之后，第一列作行标题，适合对比表和规格表；窄屏横向滚动
   articles: [
     { key: 'trend', slug: 'neon-shuffle-ai-trend', publishedAt: '2026-10-20', updatedAt: '2026-10-20', cover: '/guides/neon-shuffle-ai-trend.jpg' },
     { key: 'howTo', slug: 'how-to-make-neon-shuffle-ai-video', publishedAt: '2026-10-20', updatedAt: '2026-10-20', style: 'neon-shuffle-v1' },

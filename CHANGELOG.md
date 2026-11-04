@@ -4,6 +4,19 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-04
+
+### Added: optional tables in guide articles
+
+- An article section can carry `table: { head, rows }` (`ArticleTable` in `src/content/en.ts`). It renders after the section's paragraphs as a real `<table>`, the first column as row headers (`th scope="row"`), and scrolls sideways on narrow screens. Use it for comparisons and spec sheets, which readers and AI answers quote more easily than prose. The sample `howTo` article shows a length-to-credits table.
+
+Upgrading a site: merge upstream. If `src/content/en.ts` conflicts, keep your site's copy and take the template's `ArticleTable` type and the `table?: ArticleTable` field on `ArticleContent.sections`. Adding tables to your own articles is optional.
+
+新增：指南文章可选表格。
+- 文章段落可以带 `table: { head, rows }`（类型 `ArticleTable`，在 `src/content/en.ts`）。渲染在该段文字之后，是真正的 `<table>`，第一列作行标题（`th scope="row"`），窄屏横向滚动。适合对比表和规格表，读者和 AI 回答都比大段文字更容易引用。模板示例文章 `howTo` 加了一张时长对应积分的表。
+
+站点升级：合并 upstream。`src/content/en.ts` 冲突时保留站点文案，取模板的 `ArticleTable` 类型和 `ArticleContent.sections` 上的 `table?: ArticleTable` 字段。给自己的文章加表格是可选的。
+
 ## 2026-11-02
 
 ### Changed: the new-hot-site skill covers the newer site options

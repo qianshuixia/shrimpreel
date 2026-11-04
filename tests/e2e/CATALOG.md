@@ -259,8 +259,8 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 - `seo.spec.ts` › `页脚“问问 AI”：SSR 中带 nofollow 链接，中文站用中文提问并附 llms.txt，llms.txt 可访问`
 - `seo.spec.ts` › `文章封面：卡片和文章顶部显示，og:image 与 Article.image 用封面，SPA 切换后不残留；没填的用默认图`
   - 每个 `cover` 文件都能访问（路径写错即失败）；SSR 只有一个 `og:image` 且宽高声明在它后面；列表 → 文章 → 列表走 SPA 导航后 `og:image` 先换成封面、再恢复默认图。
-- `seo.spec.ts` › `文章可选能力：绑定风格显示样片并预选风格、带 FAQ 输出 FAQPage；没填的文章不变`
-  - 带 `style` 的文章（中英各一）在导语后显示该风格的原片 + AI 样片（视频数一致），文末 CTA 为 `/?style=<id>#create`；带 `faq` 的文章显示折叠问答（可展开）且只输出一个 FAQPage，问题数与 content 一致；没有 style、faq 的文章没有样片区块和 FAQPage，CTA 仍是 `/#create`。
+- `seo.spec.ts` › `文章可选能力：绑定风格显示样片并预选风格、带 FAQ 输出 FAQPage、段落表格；没填的文章不变`
+  - 带 `style` 的文章（中英各一）在导语后显示该风格的原片 + AI 样片（视频数一致），文末 CTA 为 `/?style=<id>#create`；带 `faq` 的文章显示折叠问答（可展开）且只输出一个 FAQPage，问题数与 content 一致；段落的 `table` 渲染出的表头、行数与 content 一致，首列是 `th[scope=row]`；没有 style、faq 的文章没有样片区块和 FAQPage，CTA 仍是 `/#create`。
 
 ## P1 运营与数据管理
 

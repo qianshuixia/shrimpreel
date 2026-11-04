@@ -118,6 +118,36 @@ function ArticlePage() {
             {section.p.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
+            {section.table ? (
+              <div className="my-6 overflow-x-auto">
+                <table>
+                  <thead>
+                    <tr>
+                      {section.table.head.map((cell) => (
+                        <th key={cell} scope="col">
+                          {cell}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.table.rows.map((row) => (
+                      <tr key={row[0]}>
+                        {row.map((cell, i) =>
+                          i === 0 ? (
+                            <th key={i} scope="row">
+                              {cell}
+                            </th>
+                          ) : (
+                            <td key={i}>{cell}</td>
+                          ),
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </section>
         ))}
       </div>

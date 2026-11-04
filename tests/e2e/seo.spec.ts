@@ -176,7 +176,7 @@ test('文章封面：卡片和文章顶部显示，og:image 与 Article.image �
   }
 })
 
-test('文章可选能力：绑定风格显示样片并预选风格、带 FAQ 输出 FAQPage；没填的文章不变', async ({ page }, testInfo) => {
+test('文章可选能力：绑定风格显示样片并预选风格、带 FAQ 输出 FAQPage、段落表格；没填的文章不变', async ({ page }, testInfo) => {
   const bound = ARTICLES.find((a) => a.style && findStyle(a.style) && (en.articles[a.key] as ArticleContent).faq?.length)
   const plain = ARTICLES.find((a) => !a.style && !(en.articles[a.key] as ArticleContent).faq)
   test.skip(!bound || !plain, '没有同时带 style、faq 的文章，或没有对照文章')
@@ -214,15 +214,26 @@ test('文章可选能力：绑定风格显示样片并预选风格、带 FAQ 输
     const ld = (await jsonLdTypes()).filter((n) => n['@type'] === 'FAQPage')
     expect(ld).toHaveLength(1)
     expect(ld[0]!.mainEntity).toHaveLength(faq.length)
+    // 段落表格：表头、行数与 content 一致，首列是行标题
+    const tables = (c.articles[bound!.key] as ArticleContent).sections.flatMap((sec) => (sec.table ? [sec.table] : []))
+    await expect(page.locator('.prose-article table')).toHaveCount(tables.length)
+    if (tables[0]) {
+      const table = page.locator('.prose-article table').first()
+      await expect(table.locator('thead th')).toHaveText(tables[0].head)
+      await expect(table.locator('tbody tr')).toHaveCount(tables[0].rows.length)
+      await expect(table.locator('tbody th[scope=row]').first()).toHaveText(tables[0].rows[0]![0]!)
+    }
     if (prefix === '') await testInfo.attach('bound-article', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' })
   }
 
-  // 对照：没有 style、faq 的文章
+  // 对照：没有 style、faq 的文章（模板示例里也没有表格）
+  const plainTables = (en.articles[plain!.key] as ArticleContent).sections.filter((sec) => sec.table).length
   for (const prefix of ['', '/zh']) {
     await page.goto(`${prefix}${articlePath(plain!.key)}`)
     await expect(page.getByTestId('article-style-demo')).toHaveCount(0)
     await expect(page.getByTestId('article-faq')).toHaveCount(0)
     await expect(page.locator('article video')).toHaveCount(0)
+    await expect(page.locator('.prose-article table')).toHaveCount(plainTables)
     expect((await jsonLdTypes()).map((n) => n['@type'])).not.toContain('FAQPage')
     await expect(page.getByRole('link', { name: (prefix ? zh : en).finalCta.cta })).toHaveAttribute('href', `${prefix || '/'}#create`)
   }
