@@ -22,8 +22,9 @@ export default defineConfig({
   ],
   use: {
     baseURL: BASE_URL,
-    trace: 'on',
-    screenshot: 'on',
+    // 本地每个用例都留 trace 和截图，便于复核；CI 只留失败的，上传的报告才不会占满账号的 Actions 存储
+    trace: process.env.CI ? 'retain-on-failure' : 'on',
+    screenshot: process.env.CI ? 'only-on-failure' : 'on',
     locale: 'en-US',
     // 站点填了 analytics.ga4Id 时，同意横幅会挡住页面底部的按钮，接受后还会把测试访问发到真实的 GA4 媒体资源。
     // 默认按“拒绝”预置同意状态；需要同意的用例自己改（见 attribution.spec.ts）。没配 GA4 时这一项不起作用。

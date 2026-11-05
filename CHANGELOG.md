@@ -6,6 +6,17 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-11-05
 
+### Changed: smaller e2e reports in CI
+
+- With `CI` set, Playwright keeps traces and screenshots only for failed tests (`retain-on-failure`, `only-on-failure`); local runs still record every test. CI uploads only `report/` when the run fails, still for 3 days. A failed run's report drops from about 170–290 MB to a few MB per failing test, so private site repos no longer fill the account's Actions storage (500 MB on GitHub Free).
+
+Upgrading a site: merge upstream. `playwright.config.ts` and `.github/workflows/ci.yml` are template files; if they conflict, take the template's version.
+
+改动：CI 里的 e2e 报告变小。
+- 设了 `CI` 时，Playwright 只给失败的用例保留 trace 和截图（`retain-on-failure`、`only-on-failure`），本地运行仍然每个用例都留。CI 只在失败时上传 `report/`，仍保留 3 天。一次失败的报告从 170–290 MB 降到每个失败用例几 MB，私有站点仓库不会再占满账号的 Actions 存储（GitHub Free 为 500 MB）。
+
+站点升级：合并 upstream。`playwright.config.ts` 和 `.github/workflows/ci.yml` 属于模板文件，冲突时取模板的版本。
+
 ### Added: more key facts in `/llms.txt`
 
 - The Key facts list now says when styles come with background music (`styles[].music`), that downloads are MP4 files without a visible watermark, and, with `aiMetadata.enabled`, that each video carries a machine-readable AI label.

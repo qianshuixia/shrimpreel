@@ -445,7 +445,7 @@ e2e coverage (81 tests):
 - Generator draft and phone upload: a signed-out visitor's photo, style and length survive sign-in and checkout and are cleared once a generation starts; a photo uploaded from the phone page reaches the desktop and the code can't be reused; the phone page rejects a missing token and wrong formats; unknown tokens, disguised files and a second take are refused.
 - SEO: every seo-check rule, hydration of the English and Chinese home pages, head updates after client-side navigation, crawlable language links.
 
-Artifacts go to `.tmp/video-template-e2e/`: `report/` (HTML report with screenshots and traces for every step), `results.json` and `test-results/`.
+Artifacts go to `.tmp/video-template-e2e/`: `report/` (HTML report with screenshots and traces for every step), `results.json` and `test-results/`. In CI (`CI` set) only failed tests keep traces and screenshots, and the workflow uploads `report/` only when the run fails, kept for 3 days: artifacts from private site repos count against the account's Actions storage (500 MB on GitHub Free).
 
 ## Project layout
 

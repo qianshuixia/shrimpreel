@@ -445,7 +445,7 @@ e2e 覆盖（81 个用例）：
 - 生成器草稿与手机传图：访客选的照片、风格和时长跨登录和付款保留，开始生成后清除；手机页传的图到达桌面，二维码不能重复用；手机页没有 token 或格式不对会提示；未知 token、伪装的文件和重复取走都被拒绝。
 - SEO：seo-check 全部规则、中英文首页水合、客户端路由切换后 head 同步、语言链接可抓取。
 
-产物在 `.tmp/video-template-e2e/`：`report/`（HTML 报告，含每步截图和 trace）、`results.json`、`test-results/`。
+产物在 `.tmp/video-template-e2e/`：`report/`（HTML 报告，含每步截图和 trace）、`results.json`、`test-results/`。CI 里（设了 `CI`）只有失败的用例保留 trace 和截图，工作流只在失败时上传 `report/`，保留 3 天：私有站点仓库的工件占账号的 Actions 存储（GitHub Free 为 500 MB）。
 
 ## 目录
 

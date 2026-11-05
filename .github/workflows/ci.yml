@@ -50,10 +50,11 @@ jobs:
           sed -i "s/^SESSION_SECRET=.*/SESSION_SECRET=$(openssl rand -hex 32)/" .dev.vars
       - run: npm run seed:local
       - run: npm run test:e2e
-      # 报告每份约 170 MB，只在失败时上传并短期保留，避免占满 Actions 存储
+      # 私有仓库的报告占账号的 Actions 存储（Free 每月 0.5 GB）：只在失败时上传，只传 HTML 报告
+      # （CI 下只含失败用例的 trace 和截图，见 playwright.config.ts），短期保留
       - uses: actions/upload-artifact@v7
         if: ${{ failure() }}
         with:
           name: e2e-report
-          path: .tmp/video-template-e2e/
+          path: .tmp/video-template-e2e/report/
           retention-days: 3
