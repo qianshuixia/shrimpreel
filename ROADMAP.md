@@ -210,7 +210,7 @@
 
 - 付费墙放在想生成的那一刻：已登录且余额不足时，生成器主按钮直接下单够用的最便宜的积分包（`cheapestPackageCovering`），下方链接到价格页；没有够用的包时仍跳价格页。下单逻辑抽成 `src/lib/checkout.ts` 的 `useCheckout`，价格页和生成器共用，暂停收款规则不变。
 - 价格页：`pricing.approx` 换成 `pricing.makes`，按 `packageMakes` 列出买得起的最长和最短时长各能做几条；网格列数按包数（2、3、4）排列。单条包（正好一条最短时长）由站点在 `site.packages` 里加。
-- `/llms.txt`：由 `site` 和英文文案生成（关键事实、页面、指南、条款），`seo:check` 和线上 smoke 检查它。复盘里没有证据表明它带来推荐，作为低成本项。
+- `/llms.txt`：由 `site` 和英文文案生成（关键事实、页面、指南、条款），`seo:check` 和线上 smoke 检查它。复盘里没有证据表明它带来推荐，作为低成本项。2026-11-05 关键事实补上配乐、无可见水印（开了 `aiMetadata` 时注明 XMP 标记）和站点自填的 `site.seo.llmsFacts`，起因是 ChatGPT 把第一个热词站和同名竞品混为一谈。
 - 告警通道：所有告警和 D1 备份失败同时发到 `PAYMENT_NOTIFY_WEBHOOK_URL`（KV 去重）；新增“视频服务商余额”告警，每小时查一次，低于 10 美元告警。余额查询抽成 `src/server/video-balance.ts`，测试连接共用。
 - 测试：`tests/unit/pricing.test.ts`（`packageMakes`、`cheapestPackageCovering`）、`tests/unit/llms.test.ts`、`tests/unit/alerts.test.ts`（余额阈值、聊天群去重）；e2e 2 个（生成器就地购买到积分到账；暂停收款时就地购买禁用）。
 - 未验证：线上聊天群实际收到告警（飞书关键词）；余额告警在真实 yir 账户上触发。

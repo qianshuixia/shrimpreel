@@ -209,6 +209,9 @@ export const site = {
     indexNowKey: '',
     // 品牌社媒主页，写进 Organization.sameAs
     sameAs: [] as string[],
+    // /llms.txt 的 Key facts 末尾追加的英文事实句（可选）：配置推不出来、AI 又常说错的事，
+    // 例如能不能用宠物照片、和名字相近的站点不是一家。只写站内文案已经承诺的事，每句以句号结尾
+    llmsFacts: [] as string[],
     ogImageSize: { width: 1200, height: 630 },
   },
 

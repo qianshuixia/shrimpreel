@@ -61,6 +61,7 @@ node scripts/new-site.mjs --keyword "<关键词>" --domain <域名> --keywords "
 - 风格的 `prompt` 和 `scene`（yir 两步走的首帧图和合成 prompt）：按趋势写清要保留什么、换成什么。
   - 照片主体默认只收一位成年人。简介要收宠物时，`scene.prompt` 和视频 `prompt` 都要写宠物分支：保持真动物，用自己的头、毛色、爪子和尾巴，后腿站立，不出现人手。每种风格用真实宠物照片各实测一条再在文案里承诺；效果差的风格（比如服装把宠物变成人形身体）在文案里如实写、不推荐。上传说明、同意框、条款和 FAQ 一起改。
 - `styles[].music`：每个时长档位一段有商用授权的 `.m4a`（做法见 CHANGELOG 2026-11-02）；没有就保持 `null`，文案不能说有配乐。
+- `seo.llmsFacts`：`/llms.txt` 的 Key facts 里配置推不出来的英文事实句，例如收宠物照片、和名字相近的竞品站不是一家。只写文案里已经承诺的事；没有就留空数组。
 - `aiMetadata.enabled`：面向欧盟用户的站打开（AI Act 第 50(2) 条，已上市系统宽限到 2026-12-02）。`fraudWarningAutoRefund` 保持 `false`，除非用户要求自动退款。
 - `theme`：简介指定了外观就选 `classic` 或 `acid`（见 `src/lib/theme.ts`），否则保留模板值。
 - `signupBonusCredits`、`signupBonusValidDays`（赠送积分有效期，0 = 永不过期）、`retention`、`takedownSlaHours`、`trendPlatform`。

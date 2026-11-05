@@ -4,6 +4,21 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-05
+
+### Added: more key facts in `/llms.txt`
+
+- The Key facts list now says when styles come with background music (`styles[].music`), that downloads are MP4 files without a visible watermark, and, with `aiMetadata.enabled`, that each video carries a machine-readable AI label.
+- New `site.seo.llmsFacts` (default `[]`): extra English sentences appended to Key facts, for facts the config can't express and AI answers tend to get wrong, such as accepting pet photos or not being a similarly named competitor. Only state what the site copy already promises.
+
+Upgrading a site: merge upstream. If `src/config/site.ts` conflicts, keep your values and add `llmsFacts: [] as string[]` to `site.seo`; fill it if AI answers confuse your site with another or miss what it supports.
+
+新增：`/llms.txt` 补充关键事实。
+- Key facts 会写明哪些风格自带配乐（`styles[].music`）、下载的是无可见水印的 MP4；开了 `aiMetadata.enabled` 时再注明每条成片带机器可读的 AI 标记。
+- 新增 `site.seo.llmsFacts`（默认 `[]`）：追加到 Key facts 末尾的英文句子，写配置推不出来、AI 又常说错的事，例如能不能用宠物照片、和名字相近的竞品站不是一家。只写站内文案已经承诺的事。
+
+站点升级：合并 upstream。`src/config/site.ts` 冲突时保留站点的值，在 `site.seo` 里加 `llmsFacts: [] as string[]`；AI 回答把本站和别的站混淆、或漏掉本站支持的功能时，把对应事实写进去。
+
 ## 2026-11-04
 
 ### Added: optional tables in guide articles

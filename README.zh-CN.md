@@ -235,6 +235,7 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
 
 - **主题**：`site.theme` 选整站外观，写在 `<html data-skin>` 上，访客仍可切换亮色 / 暗色。`classic`（默认）：暖白纸张、品红强调、衬线标题、胶囊按钮；`acid`：锌黑 / 奶白、黄绿强调、无衬线粗标题、小圆角按钮。颜色、字体、圆角都是 `src/styles.css` 里的 CSS 变量，新增主题时在 `src/lib/theme.ts` 登记并写亮色、暗色两组变量（`tests/unit/theme.test.ts` 核对）。
   - 统计同意卡片（填了 `ga4Id` 或 `clarityId` 时启用，只对欧洲经济区、英国、瑞士和无法判断国家的访客自动弹出）在右下角，不挡正文；“接受”和“拒绝”同样大小，× 只收起本次，不记录选择。
+  - `/llms.txt` 由 `site` 和英文文案生成：关键事实（输入、风格、时长与价格、积分包和套餐、风格有配乐时写配乐、无可见水印、失败退款、保存期限、登录方式）、页面、指南和条款。配置推不出来的事实，例如收宠物照片、和名字相近的站不是一家，写在 `site.seo.llmsFacts`。
   - 页脚“问问 AI”：链接 `/llms.txt`，并列出 ChatGPT、Claude、Perplexity、Gemini（Google AI Mode）、Grok 按钮，带一段预填提问（`footer.askAiPrompt`，含首页和 `llms.txt` 地址）在新标签打开，链接 `nofollow`。
 - **积分**：每笔变动都写流水，`idempotency_key` 唯一（`order:<id>`、`order_refund:<id>`、`generation:<id>` 等），与批次、余额更新在同一个 D1 batch 里，重复入账会整体回滚。
   - 批次：每次入账是一个批次（`credit_grants`），可以带到期时间。买的积分永不过期；注册赠送按运营设置里的有效期到期（默认 `site.signupBonusValidDays`，0 = 永不过期）；后台补发时可填有效期（1–3650 天）。

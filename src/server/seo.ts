@@ -70,7 +70,7 @@ seoRoutes.get('/robots.txt', (c) => {
 })
 
 // llms.txt（https://llmstxt.org/）：给 AI 搜索引用本站的摘要。内容全部由 site 配置和英文文案生成，
-// 事实句只写配置里确实有的字段，避免 AI 把时长、价格、方向说错
+// 事实句只写配置里确实有的字段，避免 AI 把时长、价格、方向说错；配置推不出来的由站点写在 site.seo.llmsFacts
 seoRoutes.get('/llms.txt', async (c) => {
   const en = await loadContent('en')
   const link = (title: string, path: string, note?: string) => `- [${title}](${absoluteUrl(path)})${note ? `: ${note}` : ''}`
@@ -81,10 +81,17 @@ seoRoutes.get('/llms.txt', async (c) => {
   const durations = site.durations.map((d) => `${d.seconds}-second clip: ${plural(d.credits, 'credit')}`)
   const packs = site.packages.map((p) => `${plural(p.credits, 'credit')} for ${formatPrice(p.priceCents, p.currency)}`)
   const formats = upload.contentTypes.map((type) => type.replace('image/', '').toUpperCase())
+  const musicStyles = STYLES.filter((style) => style.music).map((style) => en.styles[style.id as keyof typeof en.styles].name)
   const facts = [
     `Input: one photo (${formats.join(', ')}, up to ${Math.round(upload.maxBytes / 1024 / 1024)} MB).`,
     `Style${styleNames.length === 1 ? '' : 's'}: ${styleNames.join(', ')}.`,
     `Output: a vertical ${site.template.aspectRatio} video; available lengths and cost: ${durations.join('; ')}.`,
+    ...(musicStyles.length === 0
+      ? []
+      : musicStyles.length === STYLES.length
+        ? [STYLES.length === 1 ? 'Videos come with a background music track.' : 'Each style comes with its own background music track.']
+        : [`Videos in the ${musicStyles.join(', ')} style${musicStyles.length === 1 ? '' : 's'} come with a background music track.`]),
+    `Downloads are MP4 files without a visible watermark${site.aiMetadata.enabled ? '; each video carries a machine-readable AI label (XMP metadata)' : ''}.`,
     `Credit packs (one-time purchase, credits from packs never expire): ${packs.join('; ')}.`,
     ...(sellingPlans.length > 0
       ? [`Subscriptions: ${sellingPlans.map((p) => `${formatPrice(p.priceCents, p.currency)} per ${p.interval} for ${plural(p.credits, 'credit')} each month`).join('; ')}.`]
@@ -92,6 +99,7 @@ seoRoutes.get('/llms.txt', async (c) => {
     'If a render fails, the credits are refunded automatically.',
     retention.outputDays > 0 ? `Finished videos are kept for ${retention.outputDays} days.` : 'Finished videos are kept until the user deletes them.',
     'An account is required; users sign in with Google.',
+    ...site.seo.llmsFacts,
   ]
 
   const lines = [

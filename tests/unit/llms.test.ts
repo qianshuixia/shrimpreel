@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ARTICLES, formatPrice, sellingPlans, site } from '#/config/site'
+import { ARTICLES, STYLES, formatPrice, sellingPlans, site } from '#/config/site'
 import { absoluteUrl } from '#/lib/i18n'
 import { isSeoPath, seoRoutes } from '#/server/seo'
 
@@ -22,5 +22,15 @@ describe('llms.txt', () => {
     for (const p of sellingPlans) expect(text).toContain(`${formatPrice(p.priceCents, p.currency)} per ${p.interval}`)
     expect(text).toContain(`kept for ${site.retention.outputDays} days`)
     expect(text).not.toContain('TODO')
+  })
+
+  it('配乐、无水印和站点补充的事实句与配置一致', async () => {
+    const text = await (await fetchLlms()).text()
+    expect(text.includes('background music track')).toBe(STYLES.some((style) => style.music))
+    expect(text).toContain('without a visible watermark')
+    expect(text.includes('machine-readable AI label')).toBe(site.aiMetadata.enabled)
+    for (const fact of site.seo.llmsFacts) expect(text).toContain(`
+- ${fact}
+`)
   })
 })
