@@ -14,6 +14,8 @@ type FaqItem = { q: string; a: string; guide?: { article: ArticleKey; label: str
 // 首页可选转化区块，设为 null 就不渲染。痛点只写不用本站时的麻烦，不提产品；对比逐行写“自己做”和“用本站”，不承诺生成效果
 type ProblemBlock = { eyebrow: string; title: string; items: Array<{ title: string; body: string }> }
 type WithWithoutBlock = { eyebrow: string; title: string; without: string; with: string; rows: Array<{ without: string; with: string }> }
+// 首页规格表：一行一个能直接引用的事实（输入、时长、格式、价格等），AI 回答常照搬这类规格。值从 site 读取或与配置一致；设为 null 就不渲染
+type SpecsBlock = { eyebrow: string; title: string; rows: Array<{ label: string; value: string }> }
 
 export function en(s: S) {
   const k = s.keyword
@@ -24,6 +26,11 @@ export function en(s: S) {
   const photoRetention = uploadDays > 0 ? `deleted automatically ${uploadDays} days after upload` : 'kept until you delete them'
   const videoRetention = outputDays > 0 ? `kept for ${outputDays} days after they finish` : 'kept until you delete them'
   const { ga4Id, cfBeaconToken, umamiWebsiteId, clarityId } = s.analytics
+  const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`
+  const cheapest = [...s.packages].sort((x, y) => x.priceCents - y.priceCents)[0]!
+  const typeNames: Record<string, string> = { 'image/jpeg': 'JPG', 'image/png': 'PNG', 'image/webp': 'WebP' }
+  const uploadTypes = s.upload.contentTypes.map((t) => typeNames[t] ?? t).join(', ')
+  const uploadMb = Math.round(s.upload.maxBytes / 1024 / 1024)
   // 每种风格的展示名和一句话介绍；site.styles 加风格时这里补一项（缺了 typecheck 报错），zh.ts 同
   const styles: Record<StyleId, StyleCopy> = {
     'neon-shuffle-v1': { name: k, tagline: 'The original routine, beat for beat.' },
@@ -182,6 +189,20 @@ export function en(s: S) {
       ],
       guide: `Read the full ${k} trend guide`,
     },
+    specs: {
+      eyebrow: 'At a glance',
+      title: `${b} specs`,
+      rows: [
+        { label: 'Input', value: `One clear photo of one person, ${uploadTypes} up to ${uploadMb} MB` },
+        { label: 'Styles', value: s.styles.map((style) => styles[style.id].name).join(', ') },
+        { label: 'Video length', value: `${s.durations.map((d) => d.seconds).join(', ')} seconds` },
+        { label: 'Output', value: `Vertical ${s.template.aspectRatio} MP4, no watermark` },
+        { label: 'Price', value: `1 credit = 1 second of video; packs from ${usd(cheapest.priceCents)} for ${cheapest.credits} credits` },
+        { label: 'Credits', value: subs ? 'Pack credits never expire; plan credits expire at the end of each month' : 'Never expire, no subscription' },
+        { label: 'Render time', value: 'A few minutes' },
+        { label: 'Failed renders', value: 'Credits refunded automatically' },
+      ],
+    } as SpecsBlock | null,
     features: {
       eyebrow: 'Features',
       title: `Everything you need for a ${k} clip`,

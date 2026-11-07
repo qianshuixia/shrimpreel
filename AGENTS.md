@@ -32,7 +32,7 @@
 - 用户能看到的文案（页面、邮件、错误提示）都要有 `en` 和 `zh` 两份：页面文案在 `src/content/en.ts`、`zh.ts`（`zh` 由 `Content` 类型约束，缺键 typecheck 报错），邮件在 `src/server/email-templates.ts`。组件里不写死字符串。
 - 后台 `/admin` 只有中文。
 - 文案里的关键词、品牌、天数等从 `site` 读取，不写死。
-- 不编造评价、使用人数和划线原价：`anchorPriceCents` 只填真实卖过的价格。首页可选区块（`problem`、`withWithout`）设为 `null` 就不渲染。
+- 不编造评价、使用人数和划线原价：`anchorPriceCents` 只填真实卖过的价格。首页可选区块（`problem`、`withWithout`、`specs`）设为 `null` 就不渲染。
 
 ## 数据库
 

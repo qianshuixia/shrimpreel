@@ -4,6 +4,19 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-07
+
+### Added: optional spec sheet on the home page
+
+- New home content block `specs` (`{ eyebrow, title, rows: [{ label, value }] }`), rendered as a definition list right after "What is". One fact per row: who can star, upload formats, styles, lengths, output format, price, credit expiry, render time and refunds. The template default reads its values from `site`. AI answers tend to quote spec lists like this when they recommend a tool; set the block to `null` to hide it.
+
+Upgrading a site: merge upstream. `src/content/en.ts` and `zh.ts` are site files, so the merge keeps your copy and typecheck fails until you add `specs` to both (the template's block is a good start, or `specs: null`). Write only facts the rest of your copy already promises, for example that pets are accepted.
+
+新增：首页可选规格表。
+- 首页新增文案区块 `specs`（`{ eyebrow, title, rows: [{ label, value }] }`），在 What is 之后渲染为定义列表，一行一个事实：谁能出镜、上传格式、风格、时长、成片格式、价格、积分有效期、生成时间和失败退款。模板默认值从 `site` 读取。AI 推荐工具时常照搬这类规格；设为 `null` 就不渲染。
+
+站点升级：合并 upstream。`src/content/en.ts`、`zh.ts` 属于站点文件，合并后保留站点的文案，两份都补上 `specs` 前 typecheck 会报错（可以从模板的区块改起，或者写 `specs: null`）。只写站内其他文案已经承诺的事，例如支持宠物照片。
+
 ## 2026-11-05
 
 ### Changed: smaller e2e reports in CI

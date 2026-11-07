@@ -258,6 +258,24 @@ function Home() {
         </div>
       </section>
 
+      {/* Specs：一行一个事实，方便搜索和 AI 直接引用 */}
+      {c.specs ? (
+        <section id="specs" className="scroll-mt-20 border-t border-line py-20">
+          <div className="container-page max-w-3xl">
+            <p className="eyebrow text-accent-text">{c.specs.eyebrow}</p>
+            <h2 className="mt-3 font-display text-4xl leading-tight sm:text-5xl">{c.specs.title}</h2>
+            <dl className="mt-10 divide-y divide-line border-y border-line">
+              {c.specs.rows.map((row) => (
+                <div key={row.label} className="grid gap-1 py-4 sm:grid-cols-[12rem_1fr] sm:gap-6">
+                  <dt className="font-semibold">{row.label}</dt>
+                  <dd className="text-muted">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+      ) : null}
+
       {/* Features */}
       <section id="features" className="scroll-mt-20 border-t border-line py-20">
         <div className="container-page">
