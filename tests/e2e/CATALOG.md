@@ -295,13 +295,15 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 ## P1 照片尺寸与大图上传
 
 - `photo-size.spec.ts` › `太小、太窄太扁的照片在浏览器里就被拦下：提示换一张，不发上传请求`
-  - 100×133 提示 `photo_too_small`，219×1162 提示 `photo_bad_ratio`，期间没有发出上传请求；换成正常照片后提示消失、发出 1 次上传。
+  - 100×133 提示 `photo_too_small`，320×1700 提示 `photo_bad_ratio`，期间没有发出上传请求；换成正常照片后提示消失、发出 1 次上传。
 - `photo-size.spec.ts` › `手机原图大小的照片先在浏览器里缩小：4032×3024 的 JPEG 传上去不到 2 MB，上传成功`
   - 页面里造 4032×3024 满噪点 JPEG（>4 MB）选进上传框；上传请求的 Content-Length < 2 MB、返回 201（手机原图直接上传会让 Workers 免费计划 exceededCpu）。
 - `photo-size.spec.ts` › `上传接口兜底：太窄、太小的照片 422，正常照片 201`
-  - 直接调 `/api/uploads`：219×1162 → 422 `photo_bad_ratio`，100×133 → 422 `photo_too_small`。
+  - 直接调 `/api/uploads`：320×1700 → 422 `photo_bad_ratio`，100×133 → 422 `photo_too_small`。
 - `photo-size.spec.ts` › `手机传图接口也拦：太窄的照片 422，二维码仍可用，换正常照片能传`
   - `/api/handoff/photo` 走同一个 `readImageFile`：窄图 422，同一 token 再传正常照片成功。
+- `photo-size.spec.ts` › `透明 PNG 缩小后是白底：长边超过 2048 的透明 PNG 重画成 JPEG，透明处不变黑`
+  - 页面里造 2400×2400 的透明 PNG（中间一块不透明）：上传 201，传上去的图缩到 2048×2048，角上透明处是白色（没铺白底时 JPEG 会是黑色）。
 
 ## 部署后巡检（tests/smoke）
 

@@ -70,7 +70,7 @@ const portrait =
   ":g='if(lt(hypot(X-270\\,Y-260)\\,105)\\,30\\,if(lt(hypot(X-270\\,Y-640)\\,230)*lt(Y\\,720)*gt(Y\\,420)\\,30\\,150+60*X/W))'" +
   ":b='if(lt(hypot(X-270\\,Y-260)\\,105)\\,60\\,if(lt(hypot(X-270\\,Y-640)\\,230)*lt(Y\\,720)*gt(Y\\,420)\\,60\\,230))'"
 ffmpeg(['-f', 'lavfi', '-i', `color=s=540x720:d=1,${portrait}`, '-frames:v', '1', '-q:v', '3', join(demoDir, 'sample-photo.jpg')])
-ffmpeg(['-i', join(demoDir, 'sample-photo.jpg'), '-vf', 'scale=270:360', '-q:v', '5', join(fixtureDir, 'photo.jpg')])
+ffmpeg(['-i', join(demoDir, 'sample-photo.jpg'), '-vf', 'scale=300:400', '-q:v', '5', join(fixtureDir, 'photo.jpg')])
 
 // OG 图：1200x630 渐变 + 品牌名（Windows 用 Georgia，其他系统可改字体路径）
 const font = process.platform === 'win32' ? 'C\\:/Windows/Fonts/georgiab.ttf' : '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf'

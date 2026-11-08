@@ -32,10 +32,13 @@ describe('照片尺寸检查（浏览器 photoProblem / 上传接口 imageProble
     [1152, 2048, null],
     [600, 1500, null], // 1:2.5 正好能过
     [1500, 600, null],
-    [219, 1162, 'photo_bad_ratio'],
+    [320, 1700, 'photo_bad_ratio'],
+    [219, 1162, 'photo_too_small'], // 短边不到 300，先按太小拦
     [540, 1458, 'photo_bad_ratio'], // 1:2.7
     [1500, 500, 'photo_bad_ratio'], // 3:1
     [120, 160, 'photo_too_small'],
+    [299, 400, 'photo_too_small'],
+    [300, 400, null],
     [site.upload.minSide, site.upload.minSide, null],
   ] as const)('%i×%i → %s', (w, h, expected) => {
     expect(photoProblem(w, h)).toBe(expected)
@@ -49,8 +52,8 @@ describe('照片尺寸检查（浏览器 photoProblem / 上传接口 imageProble
 
 describe('imageSize：只读文件头', () => {
   it('JPEG（SOF 段）', () => {
-    expect(imageSize(file('tests/fixtures/sizes/narrow.jpg'), 'image/jpeg')).toEqual({ width: 219, height: 1162 })
-    expect(imageSize(file('tests/fixtures/photo.jpg'), 'image/jpeg')).toEqual({ width: 270, height: 360 })
+    expect(imageSize(file('tests/fixtures/sizes/narrow.jpg'), 'image/jpeg')).toEqual({ width: 320, height: 1700 })
+    expect(imageSize(file('tests/fixtures/photo.jpg'), 'image/jpeg')).toEqual({ width: 300, height: 400 })
   })
 
   it('PNG（IHDR）', () => {

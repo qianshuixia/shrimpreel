@@ -82,3 +82,40 @@ test('手机传图接口也拦：太窄的照片 422，二维码仍可用，换�
   expect((await narrow.json()).error).toBe('photo_bad_ratio')
   expect((await send(token, readFileSync(PHOTO))).status()).toBeLessThan(300)
 })
+
+test('透明 PNG 缩小后是白底：长边超过 2048 的透明 PNG 重画成 JPEG，透明处不变黑', async ({ page }) => {
+  await devLogin(page.request, uniqueEmail('png-alpha'))
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  const uploaded = page.waitForResponse((r) => r.url().endsWith('/api/uploads') && r.request().method() === 'POST')
+  await page.evaluate(async () => {
+    // 2400×2400、中间一块不透明、其余全透明：长边超过 2048 会被缩小重画
+    const canvas = document.createElement('canvas')
+    canvas.width = 2400
+    canvas.height = 2400
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#336699'
+    ctx.fillRect(900, 900, 600, 600)
+    const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
+    const el = document.querySelector<HTMLInputElement>('[data-testid="generator"] [data-testid="photo-input"]')!
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([blob], 'sticker.png', { type: 'image/png' }))
+    el.files = transfer.files
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect((await uploaded).status()).toBe(201)
+  // 预览用的就是传上去的文件：读角上的像素
+  const corner = await page.evaluate(async () => {
+    const img = [...document.querySelectorAll<HTMLImageElement>('[data-testid="generator"] img')].find((i) => i.src.startsWith('blob:'))!
+    await img.decode()
+    const c = document.createElement('canvas')
+    c.width = img.naturalWidth
+    c.height = img.naturalHeight
+    const ctx = c.getContext('2d')!
+    ctx.drawImage(img, 0, 0)
+    return { size: [img.naturalWidth, img.naturalHeight], pixel: [...ctx.getImageData(5, 5, 1, 1).data] }
+  })
+  expect(corner.size).toEqual([2048, 2048])
+  expect(corner.pixel.slice(0, 3).every((v) => v > 240)).toBe(true)
+})
+
