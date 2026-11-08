@@ -4,6 +4,19 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-08
+
+### Fixed: full-page browser translation no longer crashes pages
+
+- With Chrome / Google Translate translating the whole page, picking a photo in the generator (or any later React update in a translated block) threw `NotFoundError` from `insertBefore` / `removeChild`, and the root error boundary replaced the page with the error screen. `src/lib/translate-guard.ts` is now installed before hydration (the React issue #11538 patch): when the reference node has been moved into the translator's `<font>` nodes, the new node goes before the child that now holds it, and a moved node is removed from its current parent. Translation keeps working; untouched DOM takes the original code path. Contributed by ken-fs in #4.
+
+Upgrading a site: merge upstream. `src/lib/translate-guard.ts` and `src/router.tsx` are template files; if `src/router.tsx` conflicts, take the template's version.
+
+修复：浏览器整页翻译不再让页面崩到错误页。
+- 开着 Chrome / Google 整页翻译时，在生成器里选照片（或翻译过的区块之后任何一次 React 更新）会从 `insertBefore` / `removeChild` 抛 `NotFoundError`，根路由错误边界把整页换成错误页。现在水合前装上 `src/lib/translate-guard.ts`（React issue #11538 的补丁）：参照节点被挪进翻译的 `<font>` 时，插到它现在所在的那个子节点前面；被挪走的节点从它现在的父节点删除。翻译照常可用，DOM 没被改过时走原来的方法。由 ken-fs 在 #4 贡献。
+
+站点升级：合并 upstream。`src/lib/translate-guard.ts`、`src/router.tsx` 属于模板文件，`src/router.tsx` 冲突时取模板的版本。
+
 ## 2026-11-07
 
 ### Added: optional spec sheet on the home page

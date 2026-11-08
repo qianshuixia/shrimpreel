@@ -1,9 +1,13 @@
 import { createRouter } from '@tanstack/react-router'
 import { getGlobalStartContext } from '@tanstack/react-start'
 import { loadContent, localeFromPathname } from './lib/i18n'
+import { installTranslateGuard } from './lib/translate-guard'
 import { routeTree } from './routeTree.gen'
 import type { Consent } from './lib/consent'
 import type { ShareView } from './server/shares'
+
+// 浏览器整页翻译会改 DOM，React 再更新时会崩到错误页：水合前装上防护（lib/translate-guard.ts）
+if (typeof window !== 'undefined') installTranslateGuard()
 
 // 浏览器首屏：尽早开始下载当前语言的文案，和路由 chunk 并行（见 lib/i18n.ts）
 const initialContent = typeof window === 'undefined' ? null : loadContent(localeFromPathname(window.location.pathname))

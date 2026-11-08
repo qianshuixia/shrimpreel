@@ -300,6 +300,7 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
   - 账号以 Google 的 `sub` 为准：同一邮箱换了 Google 账号（`sub` 不同）会被拒绝登录，登录页提示联系客服（`account_conflict`）；dev 登录建的账号（没有 `sub`）在第一次 Google 登录时绑定。
   - 注销账号只保留邮箱的加盐哈希（`deleted_accounts` 表，盐是 `SESSION_SECRET`），同一邮箱重新注册时不发注册赠送、不绑定邀请人。更换 `SESSION_SECRET` 后旧记录对不上。
   - 上传请求必须带 `Content-Length`（否则 411），超过上限直接 413，不读请求体。服务商成片超过 100 MB 判失败并退积分；带长度时流式写入 R2，没带长度时边读边计数，超过 48 MB 即停止。
+  - 浏览器整页翻译（Chrome / Google 翻译把文字换成 <font>）后，React 再更新页面会抛 NotFoundError（insertBefore / removeChild），整页变错误页：水合前装 `src/lib/translate-guard.ts`（React issue #11538 的补丁，参照节点被挪走时插到它现在所在的那层前面），翻译照常可用
   - 支付结果页带 `order` 以外的参数（Dodo 回跳会附带买家邮箱）时，Worker 先 302 去掉再渲染，邮箱不会进入页面、统计、错误上报和浏览器历史；第一次请求的 URL 仍会出现在 Workers 日志里。
   - 举报表单不需要登录：回执只发给已登录、且填的是本人账号邮箱的举报人，防止表单被用来给任意地址发信；举报编号在提交后的页面上显示，处理结果仍发到填写的邮箱。
   - 报告安全漏洞见 [SECURITY.md](SECURITY.md)。
