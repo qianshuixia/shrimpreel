@@ -123,6 +123,7 @@
 - 成片分享：社交平台（X、Facebook、Telegram、微信等）抓取 OG 预览；Safari 上的封面截帧（不支持 canvas `filter` 的 Safari 版本上背景不会模糊，但仍能截出封面）。
 - D1 备份：线上 Cron 每天写入 R2、30 天清理，以及 `scripts/restore-d1.mjs --remote` 恢复到新建的线上库。
 - 付款即时通知：没有往真实的 Telegram、飞书、Discord webhook 发过消息。
+- 照片尺寸检查：`site.upload.maxRatio`（2.5）只在 Wan 3.0 参考图接口上实测过，fal、NanoAPI、Seedance 等服务商的上限没测；浏览器端缩图依赖 `createImageBitmap`，iOS Safari 选到 HEIC 时能不能解开没有真机验证（解不开就原样上传，交给接口判）。
 
 ## 已知问题
 

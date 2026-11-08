@@ -301,6 +301,7 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
   - 注销账号只保留邮箱的加盐哈希（`deleted_accounts` 表，盐是 `SESSION_SECRET`），同一邮箱重新注册时不发注册赠送、不绑定邀请人。更换 `SESSION_SECRET` 后旧记录对不上。
   - 上传请求必须带 `Content-Length`（否则 411），超过上限直接 413，不读请求体。服务商成片超过 100 MB 判失败并退积分；带长度时流式写入 R2，没带长度时边读边计数，超过 48 MB 即停止。
   - 浏览器整页翻译（Chrome / Google 翻译把文字换成 <font>）后，React 再更新页面会抛 NotFoundError（insertBefore / removeChild），整页变错误页：水合前装 `src/lib/translate-guard.ts`（React issue #11538 的补丁，参照节点被挪走时插到它现在所在的那层前面），翻译照常可用
+  - 照片在浏览器里先检查、再上传（`src/lib/prepare-photo.ts`，生成器和手机传图页共用）：短边小于 `site.upload.minSide`（默认 160 px）或长边超过短边 `site.upload.maxRatio` 倍（默认 2.5）时直接提示换一张，不上传；大于 1.5 MB 的照片缩到长边 2048 px 的 JPEG 再传（按 EXIF 摆正，解不开的格式原样传）。上传接口读文件头再查一遍尺寸（422 `photo_too_small` / `photo_bad_ratio`），送审核前转 base64 分块进行——手机原图直接上传、逐字节转 base64 会让 Workers 免费计划以 exceededCpu 结束请求（503）。比例上限来自 Wan 3.0 参考图接口：更窄更扁的参考图会在转交上游时 INVALID_PARAM
   - 支付结果页带 `order` 以外的参数（Dodo 回跳会附带买家邮箱）时，Worker 先 302 去掉再渲染，邮箱不会进入页面、统计、错误上报和浏览器历史；第一次请求的 URL 仍会出现在 Workers 日志里。
   - 举报表单不需要登录：回执只发给已登录、且填的是本人账号邮箱的举报人，防止表单被用来给任意地址发信；举报编号在提交后的页面上显示，处理结果仍发到填写的邮箱。
   - 报告安全漏洞见 [SECURITY.md](SECURITY.md)。

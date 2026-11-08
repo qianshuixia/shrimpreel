@@ -32,10 +32,15 @@ export function base64UrlDecode(value: string) {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
 }
 
+// 分块转：逐字节拼字符串时，几 MB 的照片在送审核前转 base64 就要上千毫秒 CPU，
+// Workers 免费计划会直接以 exceededCpu 结束请求（客户端看到 503）。每次转 32 KB，同样的输入快几十倍
 export function base64Encode(bytes: ArrayBuffer | Uint8Array) {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+  const chunk = 0x8000
   let binary = ''
-  for (const byte of view) binary += String.fromCharCode(byte)
+  for (let i = 0; i < view.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, view.subarray(i, i + chunk) as unknown as number[])
+  }
   return btoa(binary)
 }
 

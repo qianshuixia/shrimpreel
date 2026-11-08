@@ -584,6 +584,8 @@ export function en(s: S) {
       daily_limit: 'We’ve hit today’s rendering capacity. Please try again tomorrow; your credits were not used.',
       rate_limited: 'Too many requests. Please wait a minute and try again.',
       file_too_large: 'That file is larger than 10 MB.',
+      photo_too_small: `That photo is too small for the face to come through. Please use one at least ${s.upload.minSide} px on its shorter side.`,
+      photo_bad_ratio: `That photo is too narrow or too wide for the video model. Please pick one whose long side is at most ${s.upload.maxRatio}× its short side, like a normal portrait or selfie (crop long screenshots first).`,
       length_required: 'Your browser sent the file in a way we can’t accept. Please try again in another browser.',
       unsupported_file_type: 'Please upload a JPG, PNG or WebP image.',
       invalid_upload: 'Please upload the photo again.',

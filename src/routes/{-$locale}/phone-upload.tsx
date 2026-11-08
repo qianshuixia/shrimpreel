@@ -5,6 +5,7 @@ import { ErrorText, Spinner } from '#/components/ui'
 import { site } from '#/config/site'
 import { api, errorCode } from '#/lib/api'
 import { getContent, localeFromParam, pageHead, useContent } from '#/lib/i18n'
+import { preparePhoto } from '#/lib/prepare-photo'
 
 export const Route = createFileRoute('/{-$locale}/phone-upload')({
   head: ({ params }) => {
@@ -35,7 +36,10 @@ function PhoneUploadPage() {
   async function send(file: File | undefined) {
     if (!file || !token) return
     setError(null)
-    // 先在手机上按类型和大小预检；真正的校验以服务端为准
+    // 先在手机上查尺寸、把原图缩小（手机原图 7–9 MB 会让上传接口 CPU 超限），再按类型和大小预检；真正的校验以服务端为准
+    const prepared = await preparePhoto(file)
+    if (prepared.problem) return setError(prepared.problem)
+    file = prepared.file
     if (!(site.upload.contentTypes as readonly string[]).includes(file.type)) return setError('unsupported_file_type')
     if (file.size > site.upload.maxBytes) return setError('file_too_large')
     setSending(true)

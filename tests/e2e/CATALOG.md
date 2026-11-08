@@ -16,9 +16,10 @@
 | `src/server/orders.ts`、`src/server/payments/`、`src/server/reconcile.ts`、价格页、`checkout/` | `payments`、`reconcile`、`subscriptions`、`referrals`、`email` |
 | `src/server/subscriptions.ts` | `subscriptions` |
 | `src/server/credits.ts`、`src/server/redeem.ts`、`src/server/referrals.ts` | `credits`、`generation`、`payments`、`redeem`、`referrals`、`subscriptions` |
-| `src/server/jobs.ts`、`src/server/media.ts`、`src/server/video/`、`src/server/moderation.ts`、生成器组件 | `generation`、`credits`、`compliance`、`phone-upload`、`ai-label` |
+| `src/server/jobs.ts`、`src/server/media.ts`、`src/server/video/`、`src/server/moderation.ts`、生成器组件 | `generation`、`credits`、`compliance`、`phone-upload`、`ai-label`、`photo-size` |
 | `src/server/xmp.ts`、`src/server/output-moderation.ts`、`src/lib/xmp.ts`、`verify` 页、`/api/verify` | `ai-label`、`generation`、`seo` |
-| `src/server/handoff.ts`、`src/lib/photo-draft.ts`、`phone-upload` 页 | `phone-upload` |
+| `src/server/handoff.ts`、`src/lib/photo-draft.ts`、`phone-upload` 页 | `phone-upload`、`photo-size` |
+| `src/lib/prepare-photo.ts`、`site.upload` | `photo-size`、`generation`、`phone-upload` |
 | `src/server/retention.ts`、`src/server/takedown.ts`、`src/server/account-export.ts`、`/report` | `compliance`、`share`、`email` |
 | `src/server/shares.ts`、`v.$shareId` 页 | `share` |
 | `src/server/admin.ts`、`src/server/reports.ts`、`src/routes/admin/` | `admin`、`data-management`、`attribution` |
@@ -290,6 +291,17 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
   - 没有 token 只提示去电脑扫码；GIF 在手机上预检就被拒绝。
 - `phone-upload.spec.ts` › `手机传图接口边界：未知 token、伪装成图片的文本、一次性取走`
   - 未知 token 的 photo 和 take 都是 410；等待中 take 返回 204；文本冒充 JPEG 返回 415 且二维码仍可用；成功后再传返回 409；take 返回原图字节且 `no-store`，再 take 是 410。
+
+## P1 照片尺寸与大图上传
+
+- `photo-size.spec.ts` › `太小、太窄太扁的照片在浏览器里就被拦下：提示换一张，不发上传请求`
+  - 100×133 提示 `photo_too_small`，219×1162 提示 `photo_bad_ratio`，期间没有发出上传请求；换成正常照片后提示消失、发出 1 次上传。
+- `photo-size.spec.ts` › `手机原图大小的照片先在浏览器里缩小：4032×3024 的 JPEG 传上去不到 2 MB，上传成功`
+  - 页面里造 4032×3024 满噪点 JPEG（>4 MB）选进上传框；上传请求的 Content-Length < 2 MB、返回 201（手机原图直接上传会让 Workers 免费计划 exceededCpu）。
+- `photo-size.spec.ts` › `上传接口兜底：太窄、太小的照片 422，正常照片 201`
+  - 直接调 `/api/uploads`：219×1162 → 422 `photo_bad_ratio`，100×133 → 422 `photo_too_small`。
+- `photo-size.spec.ts` › `手机传图接口也拦：太窄的照片 422，二维码仍可用，换正常照片能传`
+  - `/api/handoff/photo` 走同一个 `readImageFile`：窄图 422，同一 token 再传正常照片成功。
 
 ## 部署后巡检（tests/smoke）
 
