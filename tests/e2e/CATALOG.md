@@ -25,7 +25,7 @@
 | `src/server/settings.ts`、`src/server/runtime-config.ts`、`src/server/probes.ts` | `settings` |
 | `src/server/auth.ts`、`src/server/google.ts`、`sign-in` 页 | `sign-in`、`admin` |
 | `src/server/email.ts`、`src/server/email-templates.ts`、`src/server/resend.ts` | `email` |
-| `src/server/alerts.ts`、`src/server/client-error.ts`、错误页 | `alerts`、`client-errors` |
+| `src/server/alerts.ts`、`src/server/client-error.ts`、错误页、`src/lib/translate-guard.ts` | `alerts`、`client-errors` |
 | `src/server/csp.ts`、页面里的内联脚本 | `security-headers` |
 | `src/server/attribution.ts`、`src/lib/consent.ts` | `attribution` |
 | `src/server/seo.ts`、`src/content/*`、`src/config/site.ts`、页面路由和布局 | `seo` |
@@ -243,6 +243,8 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 - `client-errors.spec.ts` › `全局异常和未处理的 Promise 拒绝各报一次：带编号、页面地址不带 query；重复错误只报一次，每页最多 5 条，跨域 Script error 不报`
 - `client-errors.spec.ts` › `渲染出错时显示错误页和错误编号，编号与上报一致；接口恢复后点重试回到正常页面`
 - `client-errors.spec.ts` › `上报接口不要求同源、只回 204；非 JSON 或超大的上报直接丢弃`
+- `client-errors.spec.ts` › `浏览器翻译防护：参照节点被包进翻译的 <font> 后，插入 / 删除不抛 NotFoundError、顺序不乱`
+  - 页面里造「参照节点被挪进 <font>」再 insertBefore / removeChild：不抛错，插入位置在 <font> 前；`src/lib/translate-guard.ts` 没装就会 NotFoundError（开着 Chrome 整页翻译选照片后页面变错误页）
 
 ## P1 安全响应头
 

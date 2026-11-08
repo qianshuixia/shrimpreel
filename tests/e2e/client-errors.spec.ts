@@ -96,3 +96,31 @@ test('上报接口不要求同源、只回 204；非 JSON 或超大的上报直�
     expect(dropped.status()).toBe(204)
   }
 })
+
+// Chrome / Google 整页翻译把文字节点（连同行内元素）挪进它自己的 <font> 里，React 之后 insertBefore / removeChild
+// 的参照节点就不在原父节点下，抛 NotFoundError、整页变错误页。src/lib/translate-guard.ts 在水合前装上防护
+test('浏览器翻译防护：参照节点被包进翻译的 <font> 后，插入 / 删除不抛 NotFoundError、顺序不乱', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  const result = await page.evaluate(() => {
+    const box = document.createElement('div')
+    const text = document.createTextNode('Drop a photo')
+    const tail = document.createElement('span')
+    box.appendChild(text)
+    box.appendChild(tail)
+    const font = document.createElement('font')
+    box.replaceChild(font, text)
+    font.appendChild(text)
+    const added = document.createElement('b')
+    let error = ''
+    try {
+      box.insertBefore(added, text) // React 以为 text 还是 box 的子节点
+      box.removeChild(text)
+    } catch (e) {
+      error = String(e)
+    }
+    return { error, order: [...box.childNodes].map((n) => n.nodeName) }
+  })
+  expect(result.error).toBe('')
+  expect(result.order).toEqual(['B', 'FONT', 'SPAN'])
+})
