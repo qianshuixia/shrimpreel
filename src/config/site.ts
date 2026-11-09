@@ -153,6 +153,11 @@ export const site = {
   upload: {
     maxBytes: 10 * 1024 * 1024,
     contentTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    // 参考图尺寸限制：模板自带的服务商（yir、fal、nanoapi）都走 Kling Motion Control，Kling 要求参考图宽高都不小于 300px、
+    // 长宽比在 1:2.5 到 2.5:1 之间（https://kling.ai/document-api/api/video/motion-control.md ）。超出的照片任务会先被接受、
+    // 到上游再失败，所以浏览器和上传接口按这两个值提前拦下，提示用户换一张。换了视频服务商按它的限制调
+    minSide: 300,
+    maxRatio: 2.5,
   },
 
   // 数据保留（天）：Cron 到期删除 R2 对象并标记 expired；隐私政策与个人中心按这里的值展示。

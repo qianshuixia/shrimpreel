@@ -10,6 +10,7 @@ import { clearDraft, loadDraft, saveDraft } from '#/lib/photo-draft'
 import { signInHref, useSession } from '#/lib/session'
 import { PhoneUploadPanel } from './PhoneUploadPanel'
 import { AiBadge, ErrorText, GoogleIcon, LocalLink, Spinner, formatDate } from './ui'
+import { preparePhoto } from '#/lib/prepare-photo'
 
 type Photo = { file: File; previewUrl: string; uploadId: string | null }
 
@@ -117,6 +118,11 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
   async function selectFile(file: File | undefined) {
     if (!file) return
     setError(null)
+    // 先查尺寸（太小 / 太窄太扁直接让用户换一张），再把大照片缩小（手机原图会让上传接口 CPU 超限），见 lib/prepare-photo.ts。
+    // 放在格式检查前面：浏览器能解开的 HEIC 等格式缩完就是 JPEG
+    const prepared = await preparePhoto(file)
+    if (prepared.problem) return setError(prepared.problem)
+    file = prepared.file
     if (!(site.upload.contentTypes as readonly string[]).includes(file.type)) return setError('unsupported_file_type')
     if (file.size > site.upload.maxBytes) return setError('file_too_large')
     const next: Photo = { file, previewUrl: URL.createObjectURL(file), uploadId: null }

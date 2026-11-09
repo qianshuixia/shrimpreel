@@ -549,6 +549,8 @@ export function zh(s: S): Content {
       daily_limit: '今天的生成名额已满，请明天再试，本次没有扣积分。',
       rate_limited: '请求过于频繁，请稍后再试。',
       file_too_large: '文件超过 10 MB。',
+      photo_too_small: `照片太小，脸换不上去。请换一张短边至少 ${s.upload.minSide} 像素的照片。`,
+      photo_bad_ratio: `这张照片太窄或太扁，视频模型处理不了。请换一张长边不超过短边 ${s.upload.maxRatio} 倍的照片（普通自拍、半身照都可以；长截图请先裁一下）。`,
       length_required: '浏览器上传文件的方式不受支持，请换个浏览器重试。',
       unsupported_file_type: '请上传 JPG、PNG 或 WebP 图片。',
       invalid_upload: '请重新上传照片。',
