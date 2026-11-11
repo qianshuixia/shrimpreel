@@ -93,7 +93,7 @@ function ArticlePage() {
           <h2 id="style-demo" className="mb-4 font-display text-2xl">
             {c.guides.styleDemo}
           </h2>
-          <div className="mx-auto grid max-w-md grid-cols-3 gap-3 sm:gap-4">
+          <div className={`mx-auto grid gap-3 sm:gap-4 ${style.examples.aiVersions.length === 1 ? 'max-w-[18.67rem] grid-cols-2' : 'max-w-md grid-cols-3'}`}>
             <VideoCard video={style.examples.original.video} poster={style.examples.original.poster} label={c.hero.original} credit={style.examples.original.credit} />
             {style.examples.aiVersions.map((v) => (
               <VideoCard

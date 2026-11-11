@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
-import { ARTICLES, DEFAULT_LOCALE, LOCALES, STYLES, formatPrice, localePath, sellingPlans, site } from '#/config/site'
+import { ARTICLES, DEFAULT_LOCALE, LOCALES, STYLES, formatPrice, localePath, sellingPlans, site, stylePhotoCount } from '#/config/site'
+import type { Style, StyleDuration } from '#/config/site'
 import { absoluteUrl, loadContent } from '#/lib/i18n'
 import type { AppContext } from './types'
 import { isIndexable } from './util'
@@ -77,15 +78,29 @@ seoRoutes.get('/llms.txt', async (c) => {
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
   const { upload, retention } = site
 
-  const styleNames = STYLES.map((style) => en.styles[style.id as keyof typeof en.styles].name)
-  const durations = site.durations.map((d) => `${d.seconds}-second clip: ${plural(d.credits, 'credit')}`)
+  const styleName = (style: Style) => en.styles[style.id as keyof typeof en.styles].name
+  const styleNames = STYLES.map(styleName)
+  const durationText = (list: readonly StyleDuration[]) => list.map((d) => `${d.seconds}-second clip: ${plural(d.credits, 'credit')}`).join('; ')
+  // 风格自己配了 durations 的单独列价格，其余风格共用 site.durations；都没配时和以前一样只写一句
+  const ownDurationStyles = STYLES.filter((style) => style.durations)
+  const sharedDurationStyles = STYLES.filter((style) => !style.durations)
+  const lengths =
+    ownDurationStyles.length === 0
+      ? `available lengths and cost: ${durationText(site.durations)}`
+      : `lengths and cost: ${[
+          ...(sharedDurationStyles.length > 0 ? [`${sharedDurationStyles.map(styleName).join(', ')}: ${durationText(site.durations)}`] : []),
+          ...ownDurationStyles.map((style) => `${styleName(style)}: ${durationText(style.durations!)}`),
+        ].join('. ')}`
+  const duoNames = STYLES.filter((style) => stylePhotoCount(style) === 2).map(styleName)
   const packs = site.packages.map((p) => `${plural(p.credits, 'credit')} for ${formatPrice(p.priceCents, p.currency)}`)
   const formats = upload.contentTypes.map((type) => type.replace('image/', '').toUpperCase())
   const musicStyles = STYLES.filter((style) => style.music).map((style) => en.styles[style.id as keyof typeof en.styles].name)
   const facts = [
-    `Input: one photo (${formats.join(', ')}, up to ${Math.round(upload.maxBytes / 1024 / 1024)} MB).`,
+    `Input: one photo (${formats.join(', ')}, up to ${Math.round(upload.maxBytes / 1024 / 1024)} MB)${
+      duoNames.length > 0 ? `; the ${duoNames.join(', ')} style${duoNames.length === 1 ? ' takes' : 's take'} two photos, one per person (the first is the dancer on the left)` : ''
+    }.`,
     `Style${styleNames.length === 1 ? '' : 's'}: ${styleNames.join(', ')}.`,
-    `Output: a vertical ${site.template.aspectRatio} video; available lengths and cost: ${durations.join('; ')}.`,
+    `Output: a vertical ${site.template.aspectRatio} video; ${lengths}.`,
     ...(musicStyles.length === 0
       ? []
       : musicStyles.length === STYLES.length

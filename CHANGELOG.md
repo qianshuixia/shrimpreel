@@ -25,6 +25,19 @@ Upgrading a site: merge upstream, then `npm run db:migrate:remote` (migration `0
 
 站点升级：合并 upstream 后运行 `npm run db:migrate:remote`（迁移 `0018_second_photo.sql`）。`src/content/en.ts`、`zh.ts` 属于站点文件，两份都要补 `generator.photoLeft`、`photoRight`、`duoGuidance`，否则 typecheck 报错。若有风格指定了 `nanoapi`，即使 `VIDEO_PROVIDER` 是别的也要配 `NANOAPI_API_KEY`（`npx wrangler secret put NANOAPI_API_KEY`），`npm run doctor` 会检查。自己调用 provider `submit` 的代码要把 `imageUrl` 改成 `imageUrls`。
 
+### Fixed: llms.txt and example grids follow duo styles
+
+- `/llms.txt` said "Input: one photo" and listed only `site.durations`. It now names the styles that take two photos, and when a style has its own `durations` it lists lengths and credits per style (sites without per-style durations get the same sentence as before).
+- The home page hero and the article style demo always used three columns (original + two AI samples). A style with a single AI sample now gets two columns at the same card size instead of an empty slot.
+
+Upgrading a site: merge upstream. `src/server/seo.ts`, `src/routes/{-$locale}/index.tsx` and `src/routes/{-$locale}/$slug.tsx` are template files; take the template's version on conflict.
+
+修复：llms.txt 和样片区跟上双人风格。
+- `/llms.txt` 原来写死“Input: one photo”，时长只列 `site.durations`。现在会写出哪些风格要两张照片；有风格配了自己的 `durations` 时按风格分别列时长和积分（没配的站点输出和以前一样）。
+- 首页 hero 和文章页的风格样片区固定三列（原片 + 两段 AI 样片）。只有一段 AI 样片的风格现在用两列，卡片大小不变，不再空一格。
+
+站点升级：合并 upstream。`src/server/seo.ts`、`src/routes/{-$locale}/index.tsx`、`src/routes/{-$locale}/$slug.tsx` 属于模板文件，冲突时取模板的版本。
+
 ## 2026-11-08
 
 ### Fixed: phone photos no longer fail to upload; photos the video model can't take are rejected before upload

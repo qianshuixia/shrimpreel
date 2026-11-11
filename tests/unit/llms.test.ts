@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ARTICLES, STYLES, formatPrice, sellingPlans, site } from '#/config/site'
+import { ARTICLES, STYLES, formatPrice, sellingPlans, site, stylePhotoCount, styleDurations } from '#/config/site'
 import { absoluteUrl } from '#/lib/i18n'
 import { isSeoPath, seoRoutes } from '#/server/seo'
 
@@ -14,11 +14,13 @@ describe('llms.txt', () => {
     expect(isSeoPath('/llms.txt')).toBe(true)
   })
 
-  it('每篇文章的绝对 URL、价格、时长和积分都与配置一致，没有 TODO', async () => {
+  it('每篇文章的绝对 URL、价格、各风格的时长和积分都与配置一致，没有 TODO', async () => {
     const text = await (await fetchLlms()).text()
     for (const article of ARTICLES) expect(text).toContain(`(${absoluteUrl(`/${article.slug}`)})`)
     for (const p of site.packages) expect(text).toContain(`${p.credits} credits for ${formatPrice(p.priceCents, p.currency)}`)
-    for (const d of site.durations) expect(text).toContain(`${d.seconds}-second clip: ${d.credits} credit`)
+    for (const style of STYLES) for (const d of styleDurations(style)) expect(text).toContain(`${d.seconds}-second clip: ${d.credits} credit`)
+    // 有双人风格时 Input 那句要说明需要两张照片
+    expect(text.includes('two photos, one per person')).toBe(STYLES.some((style) => stylePhotoCount(style) === 2))
     for (const p of sellingPlans) expect(text).toContain(`${formatPrice(p.priceCents, p.currency)} per ${p.interval}`)
     expect(text).toContain(`kept for ${site.retention.outputDays} days`)
     expect(text).not.toContain('TODO')

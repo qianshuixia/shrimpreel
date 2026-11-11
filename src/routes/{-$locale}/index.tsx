@@ -88,7 +88,8 @@ function Home() {
               </div>
             ) : null}
             <div
-              className="grid grid-cols-3 gap-3 sm:gap-4"
+              // 原片 + 样片一共 2 段时（例如双人风格只有一段样片）收窄成两列，卡片和三列时一样大
+              className={`grid gap-3 sm:gap-4 ${style.examples.aiVersions.length === 1 ? 'mx-auto w-2/3 grid-cols-2' : 'grid-cols-3'}`}
               {...(STYLES.length > 1 ? { id: 'hero-panel', role: 'tabpanel', 'aria-labelledby': `hero-tab-${style.id}` } : {})}
             >
               <VideoCard key={`${style.id}-original`} video={style.examples.original.video} poster={style.examples.original.poster} label={c.hero.original} credit={style.examples.original.credit} />
