@@ -1,7 +1,7 @@
 import { useRouterState } from '@tanstack/react-router'
 import { CircleAlert, CircleCheck, Download, Smartphone, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { STYLES, cheapestPackageCovering, defaultStyle, findStyle, formatPrice, site, styleDurations, stylePhotoCount } from '#/config/site'
+import { DISPLAY_STYLES, STYLES, cheapestPackageCovering, featuredStyle, findStyle, formatPrice, site, styleDurations, stylePhotoCount } from '#/config/site'
 import { api, errorCode, isActiveGeneration, type Generation } from '#/lib/api'
 import { track } from '#/lib/attribution'
 import { useCheckout } from '#/lib/checkout'
@@ -29,10 +29,10 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
   // 两个照片槽：第 1 槽 = 源视频左边的人（单人风格只用它），第 2 槽 = 右边的人；切回单人风格时第 2 槽保留在状态里但被忽略
   const [photos, setPhotos] = useState<Photos>([null, null])
   const [uploading, setUploading] = useState(0)
-  const [ownStyleId, setOwnStyleId] = useState<string>(defaultStyle.id)
+  const [ownStyleId, setOwnStyleId] = useState<string>(featuredStyle.id)
   const styleId = controlledStyleId ?? ownStyleId
   const selectStyle = onStyleChange ?? setOwnStyleId
-  const currentStyle = findStyle(styleId) ?? defaultStyle
+  const currentStyle = findStyle(styleId) ?? featuredStyle
   const need = stylePhotoCount(currentStyle)
   const styleDurationList = styleDurations(currentStyle)
   const [durationId, setDurationId] = useState<string>(styleDurationList[styleDurationList.length - 1]!.id)
@@ -80,7 +80,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
       const file2 = draft.file2 ? new File([draft.file2], draft.name2 ?? 'photo-2', { type: draft.type2 ?? draft.file2.type }) : null
       const nextStyle = STYLES.some((s) => s.id === draft.styleId) ? draft.styleId : styleId
       // 时长按恢复出的风格自己的档位校验
-      const nextStyleDurations = styleDurations(findStyle(nextStyle) ?? defaultStyle)
+      const nextStyleDurations = styleDurations(findStyle(nextStyle) ?? featuredStyle)
       const nextDuration = nextStyleDurations.some((d) => d.id === draft.durationId)
         ? draft.durationId
         : nextStyleDurations.some((d) => d.id === durationId)
@@ -263,7 +263,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
         <section className="space-y-3">
           <StepTitle n={2}>{g.stepStyle}</StepTitle>
           <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={g.stepStyle}>
-            {STYLES.map((style) => {
+            {DISPLAY_STYLES.map((style) => {
               const active = style.id === styleId
               const copy = c.styles[style.id as keyof typeof c.styles]
               const thumb = style.examples.aiVersions[0]

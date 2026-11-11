@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { ARTICLES, LOCALES, STYLES, defaultStyle, findStyle, site, styleDurations, stylePhotoCount } from '#/config/site'
+import { ARTICLES, DISPLAY_STYLES, LOCALES, STYLES, defaultStyle, featuredStyle, findStyle, site, styleDurations, stylePhotoCount } from '#/config/site'
 import { loadContent } from '#/lib/i18n'
 
 // 风格配置的一致性：加风格时漏掉文案、源视频或 id 重复，在这里就能发现
@@ -12,6 +12,12 @@ describe('site.styles', () => {
     expect(new Set(ids).size).toBe(ids.length)
     for (const id of ids) expect(findStyle(id)?.id).toBe(id)
     expect(findStyle('no-such-style')).toBeUndefined()
+  })
+
+  it('主推风格的 id 存在（写错会悄悄退回默认风格），界面顺序以它开头且不漏风格', () => {
+    if (site.featuredStyleId !== null) expect(findStyle(site.featuredStyleId), `featuredStyleId ${site.featuredStyleId}`).toBeDefined()
+    expect(DISPLAY_STYLES[0]).toBe(featuredStyle)
+    expect([...DISPLAY_STYLES].map((s) => s.id).sort()).toEqual(STYLES.map((s) => s.id).sort())
   })
 
   it('每个风格的 sources 覆盖所有时长档位，文件名不重复', () => {

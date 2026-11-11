@@ -101,7 +101,7 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 - `generation.spec.ts` › `风格：不带 styleId 用默认风格，不存在的风格返回 400 invalid_style 且不扣积分`
   - 不存在的 styleId 返回 `invalid_style`，余额不变、没有任务；不带 styleId 时 `templateId` 是默认风格，扣 short 档积分。
 - `generation.spec.ts` › `首页切换 hero 标签与生成器同步，选第二个风格生成，记录里是所选风格；?style= 可预选`
-  - 只在 `site.styles` 多于一个时运行（模板默认一个，会跳过）：hero 标签与生成器选中项同步，方向键切标签，“Made with”每个风格一行；所选风格写入 `templateId`；`?style=` 预选，无效 id 回到默认风格。
+  - 只在 `site.styles` 多于一个时运行（模板默认一个，会跳过）：首页默认选中主推风格（`site.featuredStyleId`，没设就是默认风格）且它的标签排第一，hero 标签与生成器选中项同步，方向键切标签，“Made with”每个风格一行；所选风格写入 `templateId`；`?style=` 预选，无效 id 回到主推风格。
 - `ai-label.spec.ts` › `成片输出审核不通过：不交付成片，任务失败并退回积分；开启 aiMetadata 时验证接口也查不到`
   - 生成请求带 `mockOutcome: 'output_reject'`（仅 mock 视频商、非生产）：视频出片成功但输出审核判拒，任务 `failed`、`error_code = output_moderation_rejected`、`refunded`，流水为 −short 档、+short 档，余额回到购买量；成片接口 404；不依赖 `aiMetadata` 开关，开启时 `/api/verify/:id` 返回 `found:false`，关闭时返回 404。
 - `alerts.spec.ts` › `死信：任务判失败并只退一次积分；健康检查告警，同一时间桶重复执行不重发`

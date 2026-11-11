@@ -67,6 +67,9 @@ export const site = {
       },
     },
   ],
+  // 主推风格：首页 hero 标签和生成器默认选中它、排在最前面（例如新出的趋势风格）。
+  // null = 默认风格（styles[0]）。只影响界面，请求不带 styleId 时仍用默认风格。
+  featuredStyleId: null as string | null,
 
   // 全站共用的首页展示素材
   examples: {
@@ -301,8 +304,12 @@ export interface Style {
 }
 
 export const STYLES: readonly Style[] = site.styles
-// 第一个风格是默认风格：请求不带 styleId、首页 SSR 和 SEO 都用它
+// 第一个风格是默认风格：请求不带 styleId 和首页结构化数据用它
 export const defaultStyle: Style = STYLES[0]!
+// 首页和生成器默认选中的风格（site.featuredStyleId，没设或 id 不存在时是默认风格）
+export const featuredStyle: Style = (site.featuredStyleId === null ? undefined : findStyle(site.featuredStyleId)) ?? defaultStyle
+// 界面上的风格顺序：主推风格在前，其余按 site.styles 的顺序
+export const DISPLAY_STYLES: readonly Style[] = [featuredStyle, ...STYLES.filter((s) => s !== featuredStyle)]
 
 export function findStyle(id: string): Style | undefined {
   return STYLES.find((s) => s.id === id)

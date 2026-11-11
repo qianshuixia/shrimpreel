@@ -6,6 +6,17 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-11-11
 
+### Added: featured style
+
+- `site.featuredStyleId` (default `null`) picks the style the home page and the generator select by default and list first, for example a new trend style. The default style (`styles[0]`) is unchanged and still serves requests without a `styleId`, so a site can feature a two-photo style while keeping a one-photo default. Helpers: `featuredStyle`, `DISPLAY_STYLES` (featured first, then `site.styles` order). An id that matches no style fails `tests/unit/styles.test.ts`.
+
+Upgrading a site: merge upstream and add `featuredStyleId: null` to `site` in `src/config/site.ts` (or a style id to feature it), otherwise typecheck fails.
+
+新增：主推风格。
+- `site.featuredStyleId`（默认 `null`）指定首页和生成器默认选中、排在最前面的风格，比如新出的趋势风格。默认风格（`styles[0]`）不变，请求不带 `styleId` 时仍用它，所以站点可以主推双人风格，同时保留单人的默认风格。新增 `featuredStyle`、`DISPLAY_STYLES`（主推在前，其余按 `site.styles` 的顺序）。写了不存在的 id 时 `tests/unit/styles.test.ts` 报错。
+
+站点升级：合并 upstream 后在 `src/config/site.ts` 的 `site` 里加 `featuredStyleId: null`（或写要主推的风格 id），否则 typecheck 报错。
+
 ### Added: two-photo ("duo") styles, per-style provider and per-style durations
 
 - `site.styles[]` takes three optional fields (omit them and nothing changes): `photos: 2` (the style needs two photos, photo 1 = the person on the left of the source video, photo 2 = the right), `provider: 'fal' | 'yir' | 'nanoapi'` (pin the style to one video provider instead of `VIDEO_PROVIDER`) and `durations: [{ id, seconds, credits, isFull? }]` (this style's own length options, replacing `site.durations`). Duration ids must be unique across `site.durations` and every style (they are written to `generations.duration_id`); `sources` and `music` are keyed by the style's own ids. Helpers: `stylePhotoCount`, `styleDurations`, `findStyleDuration`.

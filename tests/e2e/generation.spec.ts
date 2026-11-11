@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { STYLES, defaultStyle, formatPrice, site, styleDurations, stylePhotoCount } from '#/config/site'
+import { DISPLAY_STYLES, STYLES, defaultStyle, featuredStyle, formatPrice, site, styleDurations, stylePhotoCount } from '#/config/site'
 import { ORIGIN, PHOTO, buyPackage, credits, devLogin, durationCredits, json, ledger, pkg, post, uniqueEmail, uploadPhoto } from './helpers'
 
 type Generation = { id: string; status: string; videoUrl: string | null; templateId: string }
@@ -155,20 +155,22 @@ test('风格：不带 styleId 用默认风格，不存在的风格返回 400 inv
 
 test.describe('多风格站点', () => {
   // 生成流程用单人风格走；双人风格由下面的“双人风格”用例覆盖
-  const SECOND = STYLES.slice(1).find((s) => stylePhotoCount(s) === 1)
-  test.skip(STYLES.length < 2 || !SECOND, '站点只有一种风格，或第二种起都是双人风格')
+  // 第二个风格 = 界面上主推风格以外的第一个单人风格
+  const SECOND = DISPLAY_STYLES.slice(1).find((s) => stylePhotoCount(s) === 1)
+  test.skip(STYLES.length < 2 || !SECOND, '站点只有一种风格，或主推风格以外都是双人风格')
 
   test('首页切换 hero 标签与生成器同步，选第二个风格生成，记录里是所选风格；?style= 可预选', async ({ page }) => {
     const second = SECOND!
     await devLogin(page.request, uniqueEmail('style-ui'))
     await buyPackage(page.request, 'starter')
 
-    // SSR 默认显示默认风格；点第二个标签后素材和生成器的选中项一起切换
+    // SSR 默认显示主推风格（没设就是默认风格），标签按主推在前排序；点第二个标签后素材和生成器的选中项一起切换
     await page.goto('/')
     await page.waitForLoadState('networkidle') // 等水合完成再点，否则点击落在还没绑事件的 SSR 按钮上
     await expect(page.getByRole('tablist')).toBeVisible()
-    await expect(page.getByTestId(`hero-tab-${defaultStyle.id}`)).toHaveAttribute('aria-selected', 'true')
-    await expect(page.getByTestId(`style-${defaultStyle.id}`)).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByRole('tab').first()).toHaveAttribute('data-testid', `hero-tab-${featuredStyle.id}`)
+    await expect(page.getByTestId(`hero-tab-${featuredStyle.id}`)).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId(`style-${featuredStyle.id}`)).toHaveAttribute('aria-checked', 'true')
     await page.getByTestId(`hero-tab-${second.id}`).click()
     await expect(page.getByTestId(`hero-tab-${second.id}`)).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByTestId(`style-${second.id}`)).toHaveAttribute('aria-checked', 'true')
@@ -179,7 +181,8 @@ test.describe('多风格站点', () => {
     // 键盘：方向键在标签间移动并选中
     await page.getByTestId(`hero-tab-${second.id}`).focus()
     await page.keyboard.press('ArrowLeft')
-    await expect(page.getByTestId(`hero-tab-${STYLES[0]!.id}`)).toHaveAttribute('aria-selected', 'true')
+    const prev = DISPLAY_STYLES[(DISPLAY_STYLES.indexOf(second) - 1 + DISPLAY_STYLES.length) % DISPLAY_STYLES.length]!
+    await expect(page.getByTestId(`hero-tab-${prev.id}`)).toHaveAttribute('aria-selected', 'true')
 
     await page.getByTestId(`style-${second.id}`).click()
     await page.getByTestId('photo-input').setInputFiles(PHOTO)
@@ -195,7 +198,7 @@ test.describe('多风格站点', () => {
     await page.goto(`/?style=${second.id}`)
     await expect(page.getByTestId(`style-${second.id}`)).toHaveAttribute('aria-checked', 'true')
     await page.goto('/?style=no-such-style')
-    await expect(page.getByTestId(`style-${defaultStyle.id}`)).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId(`style-${featuredStyle.id}`)).toHaveAttribute('aria-checked', 'true')
     expect(site.styles.length).toBeGreaterThan(1)
   })
 })

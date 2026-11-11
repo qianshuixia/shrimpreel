@@ -6,7 +6,7 @@ import { Generator } from '#/components/Generator'
 import { Pricing } from '#/components/Pricing'
 import { VideoCard } from '#/components/VideoCard'
 import { LocalLink } from '#/components/ui'
-import { STYLES, articlePath, defaultStyle, findStyle, formatPrice, site } from '#/config/site'
+import { DISPLAY_STYLES, STYLES, articlePath, featuredStyle, findStyle, formatPrice, site } from '#/config/site'
 import { getContent, localeFromParam, pageHead, useContent } from '#/lib/i18n'
 import { homeJsonLd, jsonLdScript } from '#/lib/seo'
 
@@ -36,9 +36,9 @@ function Home() {
   const c = useContent()
   const ex = site.examples
   const search = Route.useSearch()
-  // hero 标签和生成器共用同一个风格；SSR 默认显示默认风格（或 URL 指定的）
-  const [styleId, setStyleId] = useState<string>(search.style ?? defaultStyle.id)
-  const style = findStyle(styleId) ?? defaultStyle
+  // hero 标签和生成器共用同一个风格；SSR 默认显示主推风格（或 URL 指定的）
+  const [styleId, setStyleId] = useState<string>(search.style ?? featuredStyle.id)
+  const style = findStyle(styleId) ?? featuredStyle
   const styleCopy = (id: string) => c.styles[id as keyof typeof c.styles]
   return (
     <>
@@ -57,7 +57,7 @@ function Home() {
             </span>
             {STYLES.length > 1 ? (
               <div role="tablist" aria-label={c.generator.stepStyle} className="flex flex-wrap gap-2">
-                {STYLES.map((s) => {
+                {DISPLAY_STYLES.map((s) => {
                   const active = s.id === style.id
                   return (
                     <button
@@ -75,7 +75,7 @@ function Home() {
                         const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
                         if (!step) return
                         event.preventDefault()
-                        const next = STYLES[(STYLES.indexOf(s) + step + STYLES.length) % STYLES.length]!
+                        const next = DISPLAY_STYLES[(DISPLAY_STYLES.indexOf(s) + step + DISPLAY_STYLES.length) % DISPLAY_STYLES.length]!
                         setStyleId(next.id)
                         document.getElementById(`hero-tab-${next.id}`)?.focus()
                       }}
@@ -218,7 +218,7 @@ function Home() {
           </div>
           {/* 每种风格各一行（服务端渲染，不依赖 JS）；单风格时不显示风格名 */}
           <div className="space-y-10">
-            {STYLES.map((s) => (
+            {DISPLAY_STYLES.map((s) => (
               <div key={s.id} className="space-y-3" data-testid={`made-with-${s.id}`}>
                 {STYLES.length > 1 ? (
                   <p className="text-sm">
