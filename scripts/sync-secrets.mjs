@@ -11,7 +11,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { sellingPlans, site } from '../src/config/site.ts'
+import { STYLES, sellingPlans, site } from '../src/config/site.ts'
 import { checkConfig, isWeakSessionSecret } from '../src/server/config-health.ts'
 import { configBindings, parseSecretNames, readWranglerConfig } from './doctor.mjs'
 
@@ -42,7 +42,7 @@ export function exampleSecrets(text) {
 }
 
 // remoteNames：远端已有的 secret 名字，null = 读不到
-export function planSecrets({ entries, example, remoteNames, config, overwrite = false, siteDomain = site.domain, packageIds = site.packages.map((p) => p.id), planIds = sellingPlans.map((p) => p.id) }) {
+export function planSecrets({ entries, example, remoteNames, config, overwrite = false, siteDomain = site.domain, packageIds = site.packages.map((p) => p.id), planIds = sellingPlans.map((p) => p.id), styleProviders = STYLES.flatMap((s) => (s.provider ? [s.provider] : [])) }) {
   const known = exampleSecrets(example)
   const vars = config.vars ?? {}
   const errors = []
@@ -75,6 +75,7 @@ export function planSecrets({ entries, example, remoteNames, config, overwrite =
     bindings: configBindings(config),
     packageIds,
     planIds,
+    styleProviders,
     siteDomain,
   })
     .filter((issue) => issue.level === 'error' && known.has(issue.key))

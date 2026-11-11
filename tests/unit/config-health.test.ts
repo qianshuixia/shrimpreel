@@ -51,6 +51,15 @@ describe('checkConfig', () => {
     expect(checkConfig(ready({ vars: { SITE_URL: 'https://www.moonhop.ai' } }))).toEqual([])
   })
 
+  it('风格指定的视频服务商要有各自的密钥；和 VIDEO_PROVIDER 相同的不重复报，未知的报错', () => {
+    const withStyles = (styleProviders: string[], secrets: ConfigInput['secrets'] = {}) => ({ ...ready({ secrets }), styleProviders })
+    expect(keys(withStyles(['fal']))).toEqual([])
+    expect(keys(withStyles(['nanoapi']))).toEqual(['error:NANOAPI_API_KEY'])
+    expect(checkConfig(withStyles(['nanoapi', 'nanoapi']))).toEqual([expect.objectContaining({ key: 'NANOAPI_API_KEY', message: expect.stringContaining('风格指定') })])
+    expect(keys(withStyles(['nanoapi'], { NANOAPI_API_KEY: 'n' }))).toEqual([])
+    expect(keys(withStyles(['bogus']))).toEqual(['error:styleProviders'])
+  })
+
   it('只要求所选服务商的密钥；运行时能看到值时拦截弱 SESSION_SECRET，doctor 只核对名字', () => {
     const dodo = ready({
       vars: { PAYMENT_PROVIDER: 'dodo', DODO_ENVIRONMENT: 'live', DODO_PRODUCTS: '{"starter":"p1","party":"p2"}' },
@@ -189,7 +198,7 @@ describe('doctor', () => {
   })
   const allSecrets = Object.keys(ready().secrets)
   const doctorKeys = (config: Record<string, any>, options: Parameters<typeof runDoctor>[1] = {}) =>
-    runDoctor(config, { secretNames: allSecrets, pendingMigrations: [], siteDomain: 'moonhop.ai', ...options }).map((i) => `${i.level}:${i.key}`)
+    runDoctor(config, { secretNames: allSecrets, pendingMigrations: [], siteDomain: 'moonhop.ai', styleProviders: [], ...options }).map((i) => `${i.level}:${i.key}`)
 
   it('可上线的配置通过；缺 secret、未应用 migration、查询失败都报错', () => {
     expect(doctorKeys(deployable())).toEqual([])

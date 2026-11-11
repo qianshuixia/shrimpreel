@@ -65,6 +65,8 @@ describe('sync-secrets', () => {
       example,
       remoteNames: ['SESSION_SECRET', 'GOOGLE_CLIENT_SECRET', 'LEGACY_KEY'],
       config,
+      // 不受站点风格指定的服务商影响
+      styleProviders: [],
     }
     const plan = planSecrets(input)
     expect(plan).toMatchObject({ errors: [], add: ['DODO_API_KEY', 'FAL_KEY'], update: [], kept: ['SESSION_SECRET'], remoteOnly: ['GOOGLE_CLIENT_SECRET', 'LEGACY_KEY'] })

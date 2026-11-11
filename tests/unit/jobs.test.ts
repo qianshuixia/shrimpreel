@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultStyle } from '#/config/site'
 import { handleVideoJob } from '#/server/jobs'
 import { getVideoProvider } from '#/server/video'
 import type { VideoStatus } from '#/server/video/types'
@@ -63,6 +64,45 @@ describe('jobs：提交时按任务的风格找源视频', () => {
       .prepare("INSERT INTO uploads (id, user_id, r2_key, content_type, size_bytes, sha256, created_at) VALUES ('upl_1', 'usr_1', 'k', 'image/jpeg', 1, 'h', ?)")
       .run(new Date().toISOString())
     await handleVideoJob(env, { kind: 'submit', generationId: 'gen_1' })
+    expect(submit).not.toHaveBeenCalled()
+    expect(sqlite.prepare('SELECT status, error_code FROM generations WHERE id = ?').get('gen_1')).toEqual({ status: 'failed', error_code: 'invalid_input' })
+  })
+})
+
+describe('jobs：双人生成带两张照片', () => {
+  const now = () => new Date().toISOString()
+  // 上一组用例里没被消费的 mockReturnValueOnce（提前失败没走到 getVideoProvider）会留下来，先清掉
+  beforeEach(() => vi.mocked(getVideoProvider).mockReset())
+  const addUpload = (id: string, expiredAt: string | null = null) =>
+    sqlite
+      .prepare('INSERT INTO uploads (id, user_id, r2_key, content_type, size_bytes, sha256, created_at, expired_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)')
+      .run(id, 'usr_1', `k_${id}`, 'image/jpeg', `h_${id}`, now(), expiredAt)
+  const queue = () =>
+    sqlite.prepare("UPDATE generations SET status = 'queued', template_id = ?, second_upload_id = 'upl_2', provider_request_id = NULL WHERE id = 'gen_1'").run(defaultStyle.id)
+  const siteEnv = () => ({ ...env, SITE_URL: 'https://moonhop.ai', SESSION_SECRET: 'a'.repeat(64), APP_ENV: 'development' }) as unknown as Env
+
+  it('second_upload_id 有值：imageUrls 按 [第一张, 第二张] 带两个签名地址', async () => {
+    const submit = vi.fn()
+    submit.mockResolvedValue({ requestId: 'req_1', meta: {} })
+    vi.mocked(getVideoProvider).mockReturnValueOnce({ id: 'nanoapi', submit, status, costCents: () => 0 })
+    addUpload('upl_1')
+    addUpload('upl_2')
+    queue()
+    await handleVideoJob(siteEnv(), { kind: 'submit', generationId: 'gen_1' })
+    expect(submit).toHaveBeenCalledTimes(1)
+    const urls = (submit.mock.calls[0] as unknown as [{ imageUrls: string[] }])[0].imageUrls
+    expect(urls).toHaveLength(2)
+    expect(urls[0]).toContain('/media/uploads/upl_1?')
+    expect(urls[1]).toContain('/media/uploads/upl_2?')
+  })
+
+  it('第二张照片已过期：按 invalid_input 失败，不向 provider 提交', async () => {
+    const submit = vi.fn()
+    vi.mocked(getVideoProvider).mockReturnValueOnce({ id: 'nanoapi', submit, status, costCents: () => 0 })
+    addUpload('upl_1')
+    addUpload('upl_2', now())
+    queue()
+    await handleVideoJob(siteEnv(), { kind: 'submit', generationId: 'gen_1' })
     expect(submit).not.toHaveBeenCalled()
     expect(sqlite.prepare('SELECT status, error_code FROM generations WHERE id = ?').get('gen_1')).toEqual({ status: 'failed', error_code: 'invalid_input' })
   })

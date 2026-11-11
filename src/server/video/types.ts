@@ -5,7 +5,8 @@ export interface VideoSubmitInput {
   // 任务所属风格：prompt、两步走的首帧都跟着风格走
   style: Style
   durationSeconds: number
-  imageUrl: string
+  // 用户照片的签名地址；第 1 张 = 源视频左边的人（单人风格只有一张）
+  imageUrls: readonly string[]
   sourceVideoUrl: string
   sourceVideoKey: string
   webhookUrl: string

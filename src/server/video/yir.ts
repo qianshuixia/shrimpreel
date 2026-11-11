@@ -160,9 +160,11 @@ export function createYirProvider(env: Env): VideoProvider {
   return {
     id: 'yir',
     async submit(input) {
+      if (input.imageUrls.length > 1) throw new VideoProviderError('multi_photo_unsupported', 'yir takes one photo', false)
+      const photoUrl = input.imageUrls[0]!
       const scene = input.style.scene
       if (!scene) {
-        const reference = { role: 'reference_image', url: input.imageUrl } as const
+        const reference = { role: 'reference_image', url: photoUrl } as const
         const requestId = await submitVideo(input.generationId, reference, input.sourceVideoUrl, input.durationSeconds, input.webhookUrl, input.style.prompt)
         return { requestId, meta: {} }
       }
@@ -175,7 +177,7 @@ export function createYirProvider(env: Env): VideoProvider {
           prompt: scene.prompt,
           references: [
             { role: 'reference_image', url: templateSourceUrl(env, scene.frame) },
-            { role: 'reference_image', url: input.imageUrl },
+            { role: 'reference_image', url: photoUrl },
           ],
         },
         parameters: { resolution: image.resolution, aspect_ratio: image.aspectRatio, n: 1 },

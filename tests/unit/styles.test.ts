@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { ARTICLES, LOCALES, STYLES, defaultStyle, findStyle, site } from '#/config/site'
+import { ARTICLES, LOCALES, STYLES, defaultStyle, findStyle, site, styleDurations, stylePhotoCount } from '#/config/site'
 import { loadContent } from '#/lib/i18n'
 
 // 风格配置的一致性：加风格时漏掉文案、源视频或 id 重复，在这里就能发现
@@ -17,7 +17,7 @@ describe('site.styles', () => {
   it('每个风格的 sources 覆盖所有时长档位，文件名不重复', () => {
     const files: string[] = []
     for (const style of STYLES) {
-      for (const d of site.durations) {
+      for (const d of styleDurations(style)) {
         expect(style.sources[d.id], `${style.id} 缺 ${d.id} 的源视频`).toBeTruthy()
         files.push(style.sources[d.id]!)
       }
@@ -28,12 +28,25 @@ describe('site.styles', () => {
   it('配了背景音乐的风格覆盖所有时长档位，文件是 seed/templates/ 里存在的 .m4a', () => {
     for (const style of STYLES) {
       if (!style.music) continue
-      for (const d of site.durations) {
+      for (const d of styleDurations(style)) {
         const file = style.music[d.id]
         expect(file, `${style.id} 缺 ${d.id} 的背景音乐`).toBeTruthy()
         expect(file, `${style.id}/${d.id}`).toMatch(/\.m4a$/)
         expect(existsSync(`seed/templates/${file}`), `seed/templates/${file} 不存在`).toBe(true)
       }
+    }
+  })
+
+  it('时长档位 id 在全站和所有风格里不重复（写入 generations.duration_id）', () => {
+    const own = STYLES.flatMap((s) => (s.durations ?? []).map((d) => d.id))
+    const ids = [...site.durations.map((d) => d.id), ...own]
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const style of STYLES) expect(styleDurations(style).length, `${style.id} 没有时长档位`).toBeGreaterThan(0)
+  })
+
+  it('双人风格（photos = 2）必须固定走支持多图的 nanoapi', () => {
+    for (const style of STYLES) {
+      if (stylePhotoCount(style) === 2) expect(style.provider, `${style.id} 需要 provider: 'nanoapi'`).toBe('nanoapi')
     }
   })
 

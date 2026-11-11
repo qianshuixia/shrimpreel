@@ -33,7 +33,7 @@ const QUERIES = {
   uploads: `SELECT id, content_type AS contentType, size_bytes AS sizeBytes, sha256, created_at AS createdAt, expired_at AS expiredAt
     FROM uploads WHERE user_id = ?1 ORDER BY created_at`,
   generations: `SELECT id, template_id AS templateId, duration_id AS durationId, duration_seconds AS durationSeconds,
-      credits_cost AS creditsCost, upload_id AS uploadId, status, error_code AS errorCode, refunded,
+      credits_cost AS creditsCost, upload_id AS uploadId, second_upload_id AS secondUploadId, status, error_code AS errorCode, refunded,
       created_at AS createdAt, completed_at AS completedAt, expired_at AS expiredAt, removed_at AS removedAt,
       share_id AS shareId, shared_at AS sharedAt
     FROM generations WHERE user_id = ?1 ORDER BY created_at`,

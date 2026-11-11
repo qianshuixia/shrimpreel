@@ -5,6 +5,10 @@ export type PhotoDraft = {
   file: Blob
   name: string
   type: string
+  // 双人风格的第二张照片；旧草稿没有这三项
+  file2?: Blob
+  name2?: string
+  type2?: string
   styleId: string
   durationId: string
   consent: boolean
@@ -54,6 +58,7 @@ export async function loadDraft(): Promise<PhotoDraft | null> {
   try {
     const draft = await run<PhotoDraft | undefined>('readonly', (store) => store.get(KEY))
     if (!draft || !(draft.file instanceof Blob)) return null
+    if (draft.file2 !== undefined && !(draft.file2 instanceof Blob)) return null
     if (Date.now() - draft.savedAt > DRAFT_TTL_MS) {
       await clearDraft()
       return null

@@ -1,9 +1,9 @@
 // NanoAPI（可选的第三个视频服务商，VIDEO_PROVIDER=nanoapi）：https://nanoapi.ai/docs
-// 照片 + 模板源视频提交给 genjutsu（motion_control：照片里的人做源视频的动作；replace_object：把源视频里的对象换成照片里的），
+// 照片（一张或多张，双人风格两张：第 1 张 = 源视频左边的人）+ 模板源视频提交给 genjutsu（motion_control：照片里的人做源视频的动作；replace_object：把源视频里的对象换成照片里的），
 // 两者都给公开 HTTPS 地址，NanoAPI 提交时各下载一次。
 // 创建任务没有幂等键：队列重投或 Worker 中断后重新提交会重复扣费，所以创建前先列出最近的任务做去重。
-// jobs.ts 传入的 imageUrl 按任务创建时间签名，同一任务每次相同、不同任务一定不同（见 media.ts 的 signedUploadUrl），
-// 配上源视频地址就能认出“这个任务已经提交过”，直接拿回它的 id。
+// jobs.ts 传入的 imageUrls 按任务创建时间签名，同一任务每次相同、不同任务一定不同（见 media.ts 的 signedUploadUrl），
+// 要求任务里包含全部图片地址并配上源视频地址，就能认出“这个任务已经提交过”，直接拿回它的 id。
 // webhook 只当“该去查一下了”的信号，结果始终用 API key 重新拉取（不验签名）。
 import { site } from '#/config/site'
 import { cleanSecret } from '../util'
@@ -63,14 +63,14 @@ export function createNanoapiProvider(env: Env): VideoProvider {
   }
 
   // 在最近的任务里找已经提交过的同一个任务（不论状态）。列表查不了就抛错，不能盲目创建
-  async function findExisting(imageUrl: string, sourceVideoUrl: string) {
+  async function findExisting(imageUrls: readonly string[], sourceVideoUrl: string) {
     const createdAfter = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString()
     let startingAfter = ''
     for (let page = 0; page < DEDUPE_MAX_PAGES; page++) {
       const query = `created_after=${encodeURIComponent(createdAfter)}&limit=${DEDUPE_PAGE_SIZE}${startingAfter ? `&starting_after=${encodeURIComponent(startingAfter)}` : ''}`
       const list = await call<{ items?: NanoapiTask[]; has_more?: boolean }>('list', `/tasks?${query}`)
       const items = list.items ?? []
-      const found = items.find((task) => task.id && task.input?.image_urls?.includes(imageUrl) && task.input.video_url === sourceVideoUrl)
+      const found = items.find((task) => task.id && imageUrls.every((url) => task.input?.image_urls?.includes(url)) && task.input?.video_url === sourceVideoUrl)
       if (found?.id) return found.id
       const last = items[items.length - 1]
       if (!list.has_more || !last?.id) return null
@@ -82,14 +82,14 @@ export function createNanoapiProvider(env: Env): VideoProvider {
   return {
     id: 'nanoapi',
     async submit(input) {
-      const existing = await findExisting(input.imageUrl, input.sourceVideoUrl)
+      const existing = await findExisting(input.imageUrls, input.sourceVideoUrl)
       if (existing) return { requestId: existing, meta: {} }
       const { model, mode, resolution } = site.video.nanoapi
       const prompt = input.style.prompt ?? site.video.nanoapi.prompt
       const body: Record<string, unknown> = {
         model,
         mode,
-        image_urls: [input.imageUrl],
+        image_urls: [...input.imageUrls],
         video_url: input.sourceVideoUrl,
         resolution,
       }

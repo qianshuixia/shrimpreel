@@ -16,6 +16,7 @@ export function createFalProvider(env: Env): VideoProvider {
   return {
     id: 'fal',
     async submit(input) {
+      if (input.imageUrls.length > 1) throw new VideoProviderError('multi_photo_unsupported', 'fal takes one photo', false)
       const url = new URL(`https://queue.fal.run/${site.video.falModel}`)
       url.searchParams.set('fal_webhook', input.webhookUrl)
       const response = await fetch(url, {
@@ -23,7 +24,7 @@ export function createFalProvider(env: Env): VideoProvider {
         headers: headers(),
         body: JSON.stringify({
           video_url: input.sourceVideoUrl,
-          image_url: input.imageUrl,
+          image_url: input.imageUrls[0],
           resolution: site.video.resolution,
         }),
       })

@@ -39,6 +39,12 @@ export const site = {
     {
       // 写入 generations.template_id，发布后不要改
       id: 'neon-shuffle-v1',
+      // 双人风格（可选三项，都不写 = 单人照、用 VIDEO_PROVIDER、用全站 durations）：
+      //   photos: 2        要两张照片，第 1 张 = 源视频里站左边的人，第 2 张 = 右边的人。需要支持多图的服务商，目前只有 nanoapi，所以必须同时写 provider: 'nanoapi'
+      //   provider: '...'  这个风格固定走某个服务商（'fal' | 'yir' | 'nanoapi'），覆盖 VIDEO_PROVIDER；用到的服务商密钥也要配齐（config-health 会检查）
+      //   durations: [...] 这个风格自己的时长档位，替换全站 durations，格式同 durations（{ id, seconds, credits, isFull? }）。
+      //                    id 写入 generations.duration_id，全站（含 durations 和所有风格）不能重复，发布后不要改
+      // 下面的 sources 和 music 的键 = 这个风格实际用的时长档位 id（有 durations 时是它自己的 id）
       // 键 = durations[].id，每个档位都要有
       sources: { short: 'neon-shuffle-v1-6s.mp4', medium: 'neon-shuffle-v1-12s.mp4', full: 'neon-shuffle-v1-18s.mp4' },
       // 这种风格的 prompt，覆盖 video.yir.prompt 和 video.nanoapi.prompt；null = 用默认
@@ -270,9 +276,20 @@ export interface ExampleClip {
   credit: string
 }
 
+// 风格自己的时长档位（Style.durations），字段同 site.durations
+export interface StyleDuration {
+  id: string
+  seconds: number
+  credits: number
+  isFull?: boolean
+}
+
 export interface Style {
   id: string
-  sources: Readonly<Record<DurationOption['id'], string>> // 键 = durations[].id，值 = seed/templates/ 里的文件名
+  photos?: 1 | 2 // 需要几张照片，默认 1；第 1 张 = 源视频左边的人，第 2 张 = 右边的人
+  provider?: 'fal' | 'yir' | 'nanoapi' // 固定走某个视频服务商；不写 = 用 VIDEO_PROVIDER
+  durations?: readonly StyleDuration[] // 这个风格自己的时长档位，替换 site.durations；id 全站唯一
+  sources: Readonly<Record<string, string>> // 键 = 该风格的时长档位 id（styleDurations），值 = seed/templates/ 里的文件名
   prompt: string | null
   scene: StyleScene | null
   music: Readonly<Record<string, string>> | null // 键 = durations[].id，值 = seed/templates/ 里的 .m4a 文件名；null = 不加背景音乐
@@ -293,6 +310,19 @@ export function findStyle(id: string): Style | undefined {
 
 export function findDuration(id: string) {
   return site.durations.find((d) => d.id === id)
+}
+
+export function stylePhotoCount(style: Style): 1 | 2 {
+  return style.photos ?? 1
+}
+
+// 风格实际可选的时长档位：自己配了用自己的，否则用全站的
+export function styleDurations(style: Style): readonly StyleDuration[] {
+  return style.durations ?? site.durations
+}
+
+export function findStyleDuration(style: Style, id: string): StyleDuration | undefined {
+  return styleDurations(style).find((d) => d.id === id)
 }
 
 export function findPackage(id: string) {

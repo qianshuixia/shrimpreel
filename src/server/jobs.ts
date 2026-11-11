@@ -1,4 +1,4 @@
-import { findDuration, findStyle, site } from '#/config/site'
+import { findStyle, findStyleDuration, site } from '#/config/site'
 import { jobToken, signedUploadUrl, templateSourceUrl } from './media'
 import { expireStatements, generationRefundStatements } from './credits'
 import { notifyGenerationFinished } from './notifications'
@@ -119,11 +119,16 @@ async function submitGeneration(env: Env, generation: GenerationRow) {
     .run()
   if (!claimed.meta.changes) return
 
-  const duration = findDuration(generation.duration_id)
   const style = findStyle(generation.template_id)
+  const duration = style ? findStyleDuration(style, generation.duration_id) : undefined
   const sourceFile = duration ? style?.sources[duration.id] : undefined
   const upload = await env.DB.prepare('SELECT * FROM uploads WHERE id = ?').bind(generation.upload_id).first<UploadRow>()
-  if (!duration || !style || !sourceFile || !upload || upload.expired_at) {
+  // 双人生成还要第二张照片，同样不能缺或过期
+  const secondUpload = generation.second_upload_id
+    ? await env.DB.prepare('SELECT * FROM uploads WHERE id = ?').bind(generation.second_upload_id).first<UploadRow>()
+    : null
+  const secondMissing = Boolean(generation.second_upload_id) && (!secondUpload || Boolean(secondUpload.expired_at))
+  if (!duration || !style || !sourceFile || !upload || upload.expired_at || secondMissing) {
     await failGeneration(env, generation.id, 'invalid_input', 'Upload, style or duration no longer exists')
     return
   }
@@ -141,7 +146,9 @@ async function submitGeneration(env: Env, generation: GenerationRow) {
       generationId: generation.id,
       style,
       durationSeconds: generation.duration_seconds,
-      imageUrl: await signedUploadUrl(env, upload.id, Date.parse(generation.created_at)),
+      imageUrls: await Promise.all(
+        [upload, ...(secondUpload ? [secondUpload] : [])].map((u) => signedUploadUrl(env, u.id, Date.parse(generation.created_at))),
+      ),
       sourceVideoUrl: templateSourceUrl(env, sourceFile),
       sourceVideoKey: `templates/${sourceFile}`,
       webhookUrl: webhookUrl.toString(),

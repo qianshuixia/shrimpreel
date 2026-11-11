@@ -4,6 +4,27 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-11
+
+### Added: two-photo ("duo") styles, per-style provider and per-style durations
+
+- `site.styles[]` takes three optional fields (omit them and nothing changes): `photos: 2` (the style needs two photos, photo 1 = the person on the left of the source video, photo 2 = the right), `provider: 'fal' | 'yir' | 'nanoapi'` (pin the style to one video provider instead of `VIDEO_PROVIDER`) and `durations: [{ id, seconds, credits, isFull? }]` (this style's own length options, replacing `site.durations`). Duration ids must be unique across `site.durations` and every style (they are written to `generations.duration_id`); `sources` and `music` are keyed by the style's own ids. Helpers: `stylePhotoCount`, `styleDurations`, `findStyleDuration`.
+- Two photos need a provider that takes several images; only NanoAPI (genjutsu, `image_urls`) does, so `photos: 2` requires `provider: 'nanoapi'` (`tests/unit/styles.test.ts` checks). fal and yir fail such a task with `multi_photo_unsupported` (refunded). `mock` still overrides everything in dev and e2e.
+- `POST /api/generations` accepts `uploadIds: string[]` (the old `uploadId` still works for one photo). The count must equal what the style needs, otherwise 400 `invalid_upload` and nothing is charged. The second photo is stored in `generations.second_upload_id`; retention, takedown (both photos are hashed, blocked and removed) and the account export treat it like the first. `VideoSubmitInput.imageUrl` became `imageUrls`.
+- The generator shows two side-by-side drop zones (left / right, `photo-input` and `photo-input-2`) for a duo style, offers that style's own durations, and the draft saved across sign-in keeps both photos.
+- `config-health` / `doctor` / `sync-secrets` require the secrets of every provider a style pins (`styleProviders`).
+
+Upgrading a site: merge upstream, then `npm run db:migrate:remote` (migration `0018_second_photo.sql`). `src/content/en.ts` and `zh.ts` are site files: add `generator.photoLeft`, `photoRight` and `duoGuidance` to both or typecheck fails. If a style pins `nanoapi`, set `NANOAPI_API_KEY` (`npx wrangler secret put NANOAPI_API_KEY`) even when `VIDEO_PROVIDER` is something else; `npm run doctor` checks it. Custom code that calls a provider's `submit` must pass `imageUrls` instead of `imageUrl`.
+
+新增：双人风格（两张照片）、按风格指定服务商、按风格配时长。
+- `site.styles[]` 新增三个可选字段（不写则行为不变）：`photos: 2`（需要两张照片，第 1 张 = 源视频左边的人，第 2 张 = 右边的人）、`provider: 'fal' | 'yir' | 'nanoapi'`（这个风格固定走某个服务商，覆盖 `VIDEO_PROVIDER`）、`durations: [{ id, seconds, credits, isFull? }]`（这个风格自己的时长档位，替换 `site.durations`）。时长 id 在 `site.durations` 和所有风格里不能重复（会写入 `generations.duration_id`），`sources`、`music` 的键用该风格自己的 id。新增辅助函数 `stylePhotoCount`、`styleDurations`、`findStyleDuration`。
+- 两张照片需要支持多图的服务商，目前只有 NanoAPI（genjutsu 的 `image_urls`），所以 `photos: 2` 必须同时写 `provider: 'nanoapi'`（`tests/unit/styles.test.ts` 核对）。fal、yir 收到两张会以 `multi_photo_unsupported` 失败并退积分。本地和 e2e 里 `mock` 仍然压过一切。
+- `POST /api/generations` 接受 `uploadIds: string[]`（旧的 `uploadId` 仍可用于单张）。张数必须等于风格要求，否则返回 400 `invalid_upload` 且不扣积分。第二张存在 `generations.second_upload_id`；保留期清理、举报下架（两张都算哈希、拉黑、删除）和账号导出都和第一张一视同仁。`VideoSubmitInput.imageUrl` 改成了 `imageUrls`。
+- 生成器在双人风格下显示左右并排的两个上传区（`photo-input`、`photo-input-2`），时长用该风格自己的档位，登录前保存的草稿也带上两张照片。
+- `config-health`、`doctor`、`sync-secrets` 会检查风格指定的每个服务商的密钥（`styleProviders`）。
+
+站点升级：合并 upstream 后运行 `npm run db:migrate:remote`（迁移 `0018_second_photo.sql`）。`src/content/en.ts`、`zh.ts` 属于站点文件，两份都要补 `generator.photoLeft`、`photoRight`、`duoGuidance`，否则 typecheck 报错。若有风格指定了 `nanoapi`，即使 `VIDEO_PROVIDER` 是别的也要配 `NANOAPI_API_KEY`（`npx wrangler secret put NANOAPI_API_KEY`），`npm run doctor` 会检查。自己调用 provider `submit` 的代码要把 `imageUrl` 改成 `imageUrls`。
+
 ## 2026-11-08
 
 ### Fixed: phone photos no longer fail to upload; photos the video model can't take are rejected before upload

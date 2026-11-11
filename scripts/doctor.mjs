@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
-import { sellingPlans, site } from '../src/config/site.ts'
+import { STYLES, sellingPlans, site } from '../src/config/site.ts'
 import { checkConfig } from '../src/server/config-health.ts'
 
 export function readWranglerConfig(file) {
@@ -72,7 +72,7 @@ export function findSiteTodos(root = fileURLToPath(new URL('..', import.meta.url
 // secretNames / pendingMigrations：undefined = 没有核对（--offline），null = 查询失败
 export function runDoctor(
   config,
-  { secretNames, pendingMigrations, siteDomain = site.domain, packageIds = site.packages.map((p) => p.id), planIds = sellingPlans.map((p) => p.id), siteTodos = [] } = {},
+  { secretNames, pendingMigrations, siteDomain = site.domain, packageIds = site.packages.map((p) => p.id), planIds = sellingPlans.map((p) => p.id), styleProviders = STYLES.flatMap((s) => (s.provider ? [s.provider] : [])), siteTodos = [] } = {},
 ) {
   const vars = config.vars ?? {}
   const issues = checkConfig({
@@ -82,6 +82,7 @@ export function runDoctor(
     bindings: configBindings(config),
     packageIds,
     planIds,
+    styleProviders,
     siteDomain,
   })
   const error = (key, message) => issues.push({ level: 'error', key, message })

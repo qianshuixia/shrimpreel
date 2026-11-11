@@ -17,6 +17,8 @@ export interface ConfigInput {
   packageIds: readonly string[]
   // 在售的订阅套餐 id（sellingPlans，订阅开关关掉时为空），同样要在 *_PRODUCTS 里有商品
   planIds?: readonly string[]
+  // 风格固定的视频服务商（STYLES 里写了 provider 的）：和 VIDEO_PROVIDER 不同的也要有各自的密钥
+  styleProviders?: readonly string[]
   siteDomain: string
 }
 
@@ -149,6 +151,11 @@ export function checkConfig(input: ConfigInput): ConfigIssue[] {
   if (video === 'mock') error('VIDEO_PROVIDER', 'VIDEO_PROVIDER=mock：生产环境提交生成会返回 503')
   else if (!VIDEO_SECRETS[video]) error('VIDEO_PROVIDER', `未知的 VIDEO_PROVIDER=${video || '(空)'}，可选 fal、yir、nanoapi`)
   else requireSecrets(VIDEO_SECRETS[video], `${video} 视频生成`)
+  for (const p of new Set(input.styleProviders ?? [])) {
+    if (p === video) continue
+    if (!VIDEO_SECRETS[p]) error('styleProviders', `风格指定了未知的视频服务商 ${p || '(空)'}，可选 fal、yir、nanoapi`)
+    else requireSecrets(VIDEO_SECRETS[p], `${p} 视频生成（风格指定）`)
+  }
 
   const moderation = vars('MODERATION_PROVIDER')
   if (moderation === 'mock') error('MODERATION_PROVIDER', 'MODERATION_PROVIDER=mock：生产环境上传图片一律返回 503')

@@ -99,27 +99,33 @@ async function generationIdFromShareLink(env: Env, text: string) {
   return row?.id ?? null
 }
 
-// 下架：同一张原图（按 sha256，包括其他账号上传的同一文件）生成的所有成片和原图都删除，
+// 下架：同一张原图（双人成片是两张；按 sha256，包括其他账号上传的同一文件）生成的所有成片和原图都删除，
 // 进行中的任务判失败并退款，再把哈希加入黑名单阻止重新上传
 export async function removeReportedContent(env: Env, generation: GenerationRow, takedownId: string) {
   const db = env.DB
-  const upload = await db.prepare('SELECT * FROM uploads WHERE id = ?').bind(generation.upload_id).first<UploadRow>()
-  let hash = upload?.sha256 ?? null
-  if (upload && !hash && !upload.expired_at) {
-    const object = await env.MEDIA.get(upload.r2_key)
-    if (object) hash = await sha256Hex(new Uint8Array(await object.arrayBuffer()))
+  // 双人成片有两张原图，两张都按同样的规则处理
+  const photoIds = [generation.upload_id, generation.second_upload_id].filter((id): id is string => Boolean(id))
+  const hashes: string[] = []
+  for (const id of photoIds) {
+    const upload = await db.prepare('SELECT * FROM uploads WHERE id = ?').bind(id).first<UploadRow>()
+    let hash = upload?.sha256 ?? null
+    if (upload && !hash && !upload.expired_at) {
+      const object = await env.MEDIA.get(upload.r2_key)
+      if (object) hash = await sha256Hex(new Uint8Array(await object.arrayBuffer()))
+    }
+    if (hash) hashes.push(hash)
   }
 
-  const uploadMatch = `(id = ? OR (sha256 IS NOT NULL AND sha256 = ?))`
-  const uploadParams = [generation.upload_id, hash ?? '']
+  const uploadMatch = `(id IN (${photoIds.map(() => '?').join(',')})${hashes.length ? ` OR (sha256 IS NOT NULL AND sha256 IN (${hashes.map(() => '?').join(',')}))` : ''})`
+  const uploadParams = [...photoIds, ...hashes]
+  // 成片的任一张原图命中就算同一批
+  const generationMatch = `(id = ? OR upload_id IN (SELECT id FROM uploads WHERE ${uploadMatch}) OR second_upload_id IN (SELECT id FROM uploads WHERE ${uploadMatch}))`
+  const generationParams = [generation.id, ...uploadParams, ...uploadParams]
   const [uploads, generations] = await db.batch([
     db.prepare(`SELECT id, r2_key FROM uploads WHERE expired_at IS NULL AND ${uploadMatch}`).bind(...uploadParams),
     db
-      .prepare(
-        `SELECT id, user_id, status, output_r2_key, share_poster_key FROM generations WHERE removed_at IS NULL
-         AND (id = ? OR upload_id IN (SELECT id FROM uploads WHERE ${uploadMatch}))`,
-      )
-      .bind(generation.id, ...uploadParams),
+      .prepare(`SELECT id, user_id, status, output_r2_key, share_poster_key FROM generations WHERE removed_at IS NULL AND ${generationMatch}`)
+      .bind(...generationParams),
   ])
   const uploadRows = uploads!.results as Array<{ id: string; r2_key: string }>
   const generationRows = generations!.results as Array<Pick<GenerationRow, 'id' | 'user_id' | 'status' | 'output_r2_key' | 'share_poster_key'>>
@@ -138,17 +144,15 @@ export async function removeReportedContent(env: Env, generation: GenerationRow,
     db
       .prepare(
         `UPDATE generations SET output_r2_key = NULL, share_poster_key = NULL, removed_at = ?, updated_at = ? WHERE removed_at IS NULL
-         AND (id = ? OR upload_id IN (SELECT id FROM uploads WHERE ${uploadMatch}))`,
+         AND ${generationMatch}`,
       )
-      .bind(now, now, generation.id, ...uploadParams),
+      .bind(now, now, ...generationParams),
     db.prepare(`UPDATE uploads SET expired_at = COALESCE(expired_at, ?) WHERE ${uploadMatch}`).bind(now, ...uploadParams),
-    ...(hash
-      ? [
-          db
-            .prepare('INSERT INTO blocked_media (sha256, takedown_id, created_at) VALUES (?, ?, ?) ON CONFLICT(sha256) DO NOTHING')
-            .bind(hash, takedownId, now),
-        ]
-      : []),
+    ...hashes.map((hash) =>
+      db
+        .prepare('INSERT INTO blocked_media (sha256, takedown_id, created_at) VALUES (?, ?, ?) ON CONFLICT(sha256) DO NOTHING')
+        .bind(hash, takedownId, now),
+    ),
   ])
   // 按作者统计被删的视频（有成片或生成中的；早已失败或过期的不算），用于通知作者
   const owners = new Map<string, number>()
@@ -158,7 +162,7 @@ export async function removeReportedContent(env: Env, generation: GenerationRow,
   return {
     generations: generationRows.length,
     uploads: uploadRows.length,
-    blocked: Boolean(hash),
+    blocked: hashes.length > 0,
     owners: [...owners].map(([userId, videos]) => ({ userId, videos })),
   }
 }

@@ -12,7 +12,7 @@ const input = (webhookUrl = 'https://moonhop.ai/api/webhooks/yir?gen=gen_1&token
   generationId: 'gen_1',
   style,
   durationSeconds: 12,
-  imageUrl: 'https://moonhop.ai/media/uploads/upl_1?exp=1&sig=s',
+  imageUrls: ['https://moonhop.ai/media/uploads/upl_1?exp=1&sig=s'],
   sourceVideoUrl: 'https://moonhop.ai/media/templates/neon-12s.mp4',
   sourceVideoKey: 'templates/neon-12s.mp4',
   webhookUrl,
@@ -66,7 +66,7 @@ describe('yir provider：提交', () => {
       input: {
         type: 'reference',
         references: [
-          { role: 'reference_image', url: input().imageUrl },
+          { role: 'reference_image', url: input().imageUrls[0]! },
           { role: 'reference_video', url: input().sourceVideoUrl },
         ],
       },
@@ -126,6 +126,17 @@ describe('yir provider：提交', () => {
     const calls = stubFetch({})
     const error = await createYirProvider(env({ YIR_API_KEY: '' })).submit(input()).catch((e: unknown) => e)
     expect(error).toMatchObject({ code: 'provider_not_configured', retryable: false })
+    expect(calls).toHaveLength(0)
+  })
+})
+
+describe('yir provider：多张照片', () => {
+  it('yir 只收一张照片：两张时不可重试地失败，不发请求', async () => {
+    const calls = stubFetch({})
+    await expect(createYirProvider(env()).submit({ ...input(), imageUrls: ['https://a/1', 'https://a/2'] })).rejects.toMatchObject({
+      code: 'multi_photo_unsupported',
+      retryable: false,
+    })
     expect(calls).toHaveLength(0)
   })
 })
@@ -254,7 +265,7 @@ describe('yir provider：两步走（先合成首帧，再做动作参考）', (
           type: 'image',
           references: [
             { role: 'reference_image', url: 'https://moonhop.ai/media/templates/neon-scene.jpg' },
-            { role: 'reference_image', url: input().imageUrl },
+            { role: 'reference_image', url: input().imageUrls[0]! },
           ],
         },
         parameters: { resolution: '1K', aspect_ratio: '9:16', n: 1 },

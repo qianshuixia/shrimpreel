@@ -88,6 +88,7 @@ export interface GenerationRow {
   duration_seconds: number
   credits_cost: number
   upload_id: string
+  second_upload_id: string | null
   status: 'queued' | 'processing' | 'succeeded' | 'failed'
   provider: string
   provider_request_id: string | null

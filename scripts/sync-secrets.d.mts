@@ -23,6 +23,7 @@ export function planSecrets(input: {
   siteDomain?: string
   packageIds?: string[]
   planIds?: string[]
+  styleProviders?: string[]
 }): SecretPlan
 export function redact(output: string, values: string[]): string
 export function main(

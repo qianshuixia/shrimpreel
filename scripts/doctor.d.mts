@@ -17,6 +17,7 @@ export function runDoctor(
     siteDomain?: string
     packageIds?: string[]
     planIds?: string[]
+    styleProviders?: string[]
     siteTodos?: SiteTodo[]
   },
 ): ConfigIssue[]

@@ -1,3 +1,4 @@
+import type { Style } from '#/config/site'
 import { ApiError, isProduction } from '../util'
 import { createFalProvider } from './fal'
 import { createNanoapiProvider } from './nanoapi'
@@ -30,6 +31,13 @@ export function activeVideoProviderId(env: Env): VideoProvider['id'] {
   if (env.VIDEO_PROVIDER === 'nanoapi') return 'nanoapi'
   if (env.VIDEO_PROVIDER === 'mock' && !isProduction(env)) return 'mock'
   throw new ApiError(503, 'video_not_configured', `Unsupported VIDEO_PROVIDER: ${env.VIDEO_PROVIDER}`)
+}
+
+// 生成任务用哪个服务商：风格固定了就用风格的；mock（本地与 e2e）压过一切，这样双人风格也能在 mock 下跑通
+export function videoProviderIdForStyle(env: Env, style: Style): VideoProvider['id'] {
+  const active = activeVideoProviderId(env)
+  if (active === 'mock') return 'mock'
+  return style.provider ?? active
 }
 
 export function getVideoProvider(env: Env, id: string = activeVideoProviderId(env)): VideoProvider {

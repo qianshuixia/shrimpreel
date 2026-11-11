@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { site } from '../src/config/site.ts'
+import { site, styleDurations } from '../src/config/site.ts'
 
 const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const demoDir = join(root, 'public', 'demo')
@@ -59,7 +59,7 @@ for (const [name, palette] of Object.entries(palettes)) {
 
 // 生成用模板源视频：每个时长档位一段（provider 输出时长 = 源视频时长），文件名跟 site.styles[].sources 走
 for (const style of site.styles) {
-  for (const { id, seconds } of site.durations) {
+  for (const { id, seconds } of styleDurations(style)) {
     video(join(templateDir, style.sources[id]), palettes.original, seconds)
   }
 }

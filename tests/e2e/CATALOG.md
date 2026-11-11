@@ -90,6 +90,10 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 ### 生成扣费与退款
 
 - `generation.spec.ts` › `余额不足返回 402，不产生任务也不产生流水`
+- `generation.spec.ts` › `单人风格收到两张照片返回 400 invalid_upload，不扣积分也不产生任务`
+  - 默认（单人）风格带两个 `uploadIds` 返回 `invalid_upload`，余额不变、没有任务。
+- `generation.spec.ts` › `选双人风格：两个照片槽，少一张不能生成；两张上传后用 mock 生成成功，扣该风格时长的积分；API 只给一张返回 400`
+  - 只在 `site.styles` 里有 `photos: 2` 的风格时运行（模板默认没有，会跳过）：出现 `photo-input-2` 和该风格自己的时长卡片；只放一张时生成按钮禁用，两张后 mock 生成成功，扣的是该风格时长档位的积分；双人风格只给一张 `uploadIds` 返回 `invalid_upload`，余额不变。
 - `generation.spec.ts` › `生成失败自动退回积分，失败任务没有视频`
   - 流水依次为 −full 档积分、+full 档积分；失败任务的 video 接口返回 404。
 - `generation.spec.ts` › `并发轮询只落库一次、成片不被误删；后台记录服务商成本与毛利，未出片的失败任务不记成本`
