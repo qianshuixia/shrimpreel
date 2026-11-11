@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { cheapestPackageCovering, formatPrice, site } from '../../src/config/site'
-import { PHOTO, content, credits, devLogin, durationCredits, ledger, pkg, uniqueEmail } from './helpers'
+import { PHOTO, SOLO_HOME, content, credits, devLogin, durationCredits, ledger, pkg, uniqueEmail } from './helpers'
 
 const STARTER = pkg('starter').credits
 const SHORT = durationCredits('short')
@@ -30,7 +30,7 @@ test('新用户：登录 → 购买 → 生成 → 个人中心看到视频与�
   await expect(page.getByTestId('nav-credits')).toHaveText(`${STARTER} credits`)
   await shot('03-checkout-paid')
 
-  await page.goto('/')
+  await page.goto(SOLO_HOME)
   // 按钮出现 = 已水合且会话加载完；之前的输入事件 React 接收不到
   await expect(page.getByTestId('generate')).toBeVisible()
   await page.getByTestId('photo-input').setInputFiles(PHOTO)
@@ -93,7 +93,7 @@ test('生成器就地购买：余额不足时按钮是够用的最便宜的包�
   expect(shortfall, '注册赠送已够用时本用例没有意义').toBeGreaterThan(0)
   const pack = cheapestPackageCovering(shortfall)!
 
-  await page.goto('/')
+  await page.goto(SOLO_HOME)
   await expect(page.getByTestId('generator-balance')).toBeVisible()
   await page.getByTestId(`duration-${longest.id}`).click()
   const buy = page.getByTestId('generator-buy')

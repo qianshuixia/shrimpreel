@@ -17,6 +17,13 @@ Upgrading a site: merge upstream and add `featuredStyleId: null` to `site` in `s
 
 站点升级：合并 upstream 后在 `src/config/site.ts` 的 `site` 里加 `featuredStyleId: null`（或写要主推的风格 id），否则 typecheck 报错。
 
+### Fixed: e2e with a featured two-photo style
+
+- Shared e2e specs that upload one photo and use `site.durations` (smoke, phone-upload draft, security-headers, settings checkout-paused) now open the home page with `SOLO_HOME` (`/?style=<default style>`) from `tests/e2e/helpers.ts`. Before, a site featuring a duo style failed them (two drop zones, the duo's own durations).
+
+修复：主推双人风格时的 e2e。
+- 按“一张照片 + `site.durations`”写的共用 e2e（smoke、phone-upload 草稿、security-headers、settings 暂停收款）改用 `tests/e2e/helpers.ts` 的 `SOLO_HOME`（`/?style=<默认风格>`）打开首页。之前站点主推双人风格时，这些用例会因为出现两个上传区、时长换成双人档位而失败。
+
 ### Added: two-photo ("duo") styles, per-style provider and per-style durations
 
 - `site.styles[]` takes three optional fields (omit them and nothing changes): `photos: 2` (the style needs two photos, photo 1 = the person on the left of the source video, photo 2 = the right), `provider: 'fal' | 'yir' | 'nanoapi'` (pin the style to one video provider instead of `VIDEO_PROVIDER`) and `durations: [{ id, seconds, credits, isFull? }]` (this style's own length options, replacing `site.durations`). Duration ids must be unique across `site.durations` and every style (they are written to `generations.duration_id`); `sources` and `music` are keyed by the style's own ids. Helpers: `stylePhotoCount`, `styleDurations`, `findStyleDuration`.

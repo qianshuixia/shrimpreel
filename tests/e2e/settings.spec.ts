@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { site } from '../../src/config/site'
-import { ORIGIN, content, credits, devLogin, durationCredits, json, ledger, post, uniqueEmail, uploadPhoto } from './helpers'
+import { ORIGIN, SOLO_HOME, SOLO_QUERY, content, credits, devLogin, durationCredits, json, ledger, post, uniqueEmail, uploadPhoto } from './helpers'
 
 // 运营设置是全站共享状态：每个用例前后都把所有参数恢复成默认值，避免影响其他用例
 const ADMIN_EMAIL = 'admin@example.com'
@@ -159,12 +159,12 @@ test('暂停收款：生成器里的就地购买按钮对普通用户禁用并�
   await devLogin(page.request, uniqueEmail('inline-paused'))
   await setSettings({ checkoutPaused: true })
 
-  await page.goto('/')
+  await page.goto(SOLO_HOME)
   await expect(page.getByTestId('generator-balance')).toBeVisible()
   await page.getByTestId(`duration-${longest.id}`).click()
   await expect(page.getByTestId('generator-buy')).toBeDisabled()
   await expect(page.getByTestId('generator-buy')).toHaveText(content.en.pricing.paused)
-  await page.goto('/zh')
+  await page.goto(`/zh${SOLO_QUERY}`)
   await expect(page.getByTestId('generator-balance')).toBeVisible()
   await page.getByTestId(`duration-${longest.id}`).click()
   await expect(page.getByTestId('generator-buy')).toHaveText(content.zh.pricing.paused)

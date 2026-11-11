@@ -1,12 +1,16 @@
 import { readFileSync } from 'node:fs'
 import { expect, type APIRequestContext, type APIResponse } from '@playwright/test'
-import { site } from '../../src/config/site'
+import { defaultStyle, site } from '../../src/config/site'
 import { en } from '../../src/content/en'
 import { zh } from '../../src/content/zh'
 
 // 3000 被占用时用 E2E_PORT 换端口（与 playwright.config.ts 一致）
 export const ORIGIN = `http://127.0.0.1:${process.env.E2E_PORT ?? '3000'}`
 export const PHOTO = 'tests/fixtures/photo.jpg'
+// 首页生成器默认选中主推风格（site.featuredStyleId），它可能是双人或自带时长的风格。
+// 按“一张照片 + site.durations”写的用例从这里打开，固定用默认的单人风格。
+export const SOLO_QUERY = `?style=${defaultStyle.id}`
+export const SOLO_HOME = `/${SOLO_QUERY}`
 
 // 页面文案（站点里按语言懒加载，测试直接调用文案工厂）
 export const content = { en: en(site), zh: zh(site) }

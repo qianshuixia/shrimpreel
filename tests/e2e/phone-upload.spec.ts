@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { devices, expect, test, type Page } from '@playwright/test'
-import { STYLES, cheapestPackageCovering, formatPrice, site } from '../../src/config/site'
-import { ORIGIN, PHOTO, content, json, post, uniqueEmail } from './helpers'
+import { STYLES, cheapestPackageCovering, defaultStyle, formatPrice, site, stylePhotoCount } from '../../src/config/site'
+import { ORIGIN, PHOTO, SOLO_HOME, content, json, post, uniqueEmail } from './helpers'
 
 const en = content.en
 const OTHER_DURATION = site.durations[0]!
@@ -14,10 +14,11 @@ async function ready(page: Page) {
 
 test('访客草稿跨登录和付款保留：照片、风格、时长、授权都恢复，生成开始后草稿清除', async ({ page }) => {
   expect(OTHER_DURATION.id, '默认时长是最后一档，本用例选第一档').not.toBe(LONGEST.id)
-  const otherStyle = STYLES.length > 1 ? STYLES[1]! : null
+  // 换成另一个按全站时长计费的单人风格（双人风格要两张照片、时长另算）
+  const otherStyle = STYLES.find((s) => s !== defaultStyle && stylePhotoCount(s) === 1 && !s.durations) ?? null
   const cheapest = cheapestPackageCovering(OTHER_DURATION.credits)!
 
-  await page.goto('/')
+  await page.goto(SOLO_HOME)
   await ready(page)
   await page.getByTestId('photo-input').setInputFiles(PHOTO)
   await expect(page.getByText(en.generator.uploaded)).toBeVisible()
@@ -83,8 +84,8 @@ test('访客草稿跨登录和付款保留：照片、风格、时长、授权�
   await page.getByTestId('generate').click()
   await expect(page.getByTestId('generation-status')).toHaveAttribute('data-status', 'succeeded', { timeout: 60_000 })
 
-  // 生成已开始：草稿清除，刷新后没有照片
-  await page.reload()
+  // 生成已开始：草稿清除，重新打开后没有照片（URL 已不带 style，回到单人风格再看上传区）
+  await page.goto(SOLO_HOME)
   await ready(page)
   await expect(page.getByTestId('generator').getByText(en.generator.dropTitle)).toBeVisible()
   await expect(page.getByText(en.generator.uploaded)).toBeHidden()

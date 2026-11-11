@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { articlePath, site } from '../../src/config/site'
 import { PERMISSIONS_POLICY } from '../../src/server/csp'
-import { PHOTO, buyPackage, content, devLogin, uniqueEmail } from './helpers'
+import { PHOTO, SOLO_HOME, buyPackage, content, devLogin, uniqueEmail } from './helpers'
 
 const en = content.en
 const CSP = 'content-security-policy-report-only'
@@ -73,7 +73,7 @@ test('公开页、登录后生成和后台都没有 CSP 违规与水合错误；
   // 登录后完整生成一次：照片预览（blob:）、轮询、成片播放
   await devLogin(page.request, uniqueEmail('csp'))
   await buyPackage(page.request, 'starter')
-  await page.goto('/')
+  await page.goto(SOLO_HOME)
   await expect(page.getByTestId('generate')).toBeVisible()
   await page.getByTestId('photo-input').setInputFiles(PHOTO)
   await page.getByTestId('duration-short').click()
