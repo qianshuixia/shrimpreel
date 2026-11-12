@@ -4,6 +4,19 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-12
+
+### Fixed: SEO e2e when the trend article has its own FAQ
+
+- `tests/e2e/seo.spec.ts` ("head syncs after client-side navigation") no longer requires zero `FAQPage` blocks on the trend article. It now expects exactly one when `articles.trend.faq` is set and none otherwise, so the home page's FAQPage still must not leak into the article. Before, a site that added a FAQ to that article failed the test.
+
+Upgrading a site: merge upstream; nothing to change.
+
+修复：trend 文章自带 FAQ 时的 SEO e2e。
+- `tests/e2e/seo.spec.ts`（“客户端路由切换后 head 同步更新”）不再要求 trend 文章里没有 `FAQPage`：`articles.trend.faq` 有内容时要求恰好一个，没有时为零，首页的 FAQPage 仍然不能带到文章页。之前站点给这篇文章加了 FAQ，这个用例就会失败。
+
+站点升级：合并 upstream 即可，不用改别的。
+
 ## 2026-11-11
 
 ### Added: featured style

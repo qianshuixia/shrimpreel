@@ -68,7 +68,8 @@ test('客户端路由切换后 head 同步更新（canonical 不残留上一页�
   expect(article.canonical).toBe(`${origin}${articlePath('trend')}`)
   expect(article.description).toBe(en.articles.trend.description)
   expect(article.jsonLd).toEqual(expect.arrayContaining(['Article', 'BreadcrumbList']))
-  expect(article.jsonLd).not.toContain('FAQPage')
+  // 首页的 FAQPage 不能带到文章页：文章自己有 faq 时恰好一个，没有时为零
+  expect(article.jsonLd.filter((t) => t === 'FAQPage')).toHaveLength((en.articles.trend as ArticleContent).faq?.length ? 1 : 0)
 
   // 面包屑回首页：首页的结构化数据恢复，文章的消失
   await page.getByRole('navigation', { name: en.common.breadcrumb }).getByRole('link', { name: en.meta.breadcrumbHome }).click()
