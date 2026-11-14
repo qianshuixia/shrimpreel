@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/895aab94-d0c9-474e-8d90-61a6c551e536
 
 <a href="https://christmasdanceai.com/?utm_source=github&utm_medium=referral&utm_campaign=shrimpreel"><img src="docs/media/showcase-christmas-dance-ai.jpg" width="600" alt="Christmas Dance AI：一张照片生成精灵舞或圣诞派对舞视频"></a>
 
-[Christmas Dance AI](https://christmasdanceai.com/?utm_source=github&utm_medium=referral&utm_campaign=shrimpreel)：上传一张照片，变身小精灵在圣诞老人的工坊里跳舞，或穿自己的衣服跳圣诞派对舞。两种风格、Google 登录、积分包和订阅，都来自本模板。
+[Christmas Dance AI](https://christmasdanceai.com/?utm_source=github&utm_medium=referral&utm_campaign=shrimpreel)：上传两张照片跳 [Deck the Halls 情侣或厨房双人舞](https://christmasdanceai.com/zh/christmas-couple-dance-ai)，或上传一张照片变身小精灵在圣诞老人工坊里跳舞、穿自己的衣服跳圣诞派对舞。四种带配乐混流的风格（两款 720p 单人舞、两款 480p 双人舞）、20 篇中英双语指南（含[同名站点区分说明](https://christmasdanceai.com/zh/christmas-dance-ai-vs-ai-christmas-dance)）、Google 登录、$4.99 起的积分包和订阅，都来自本模板。
 
 > 状态：本地全流程可用（单元测试 + Playwright e2e），上面的站点已在生产环境运行。模板本身不部署。哪些已用真实服务验证、哪些还没有，见 [ROADMAP.md](ROADMAP.md)。
 

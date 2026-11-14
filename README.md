@@ -14,7 +14,7 @@ A 72-second tour, no sound ([Chinese version](README.zh-CN.md); MP4 files in [do
 
 <a href="https://christmasdanceai.com/?utm_source=github&utm_medium=referral&utm_campaign=shrimpreel"><img src="docs/media/showcase-christmas-dance-ai.jpg" width="600" alt="Christmas Dance AI: one photo turned into an elf dance or a Christmas party dance video"></a>
 
-[Christmas Dance AI](https://christmasdanceai.com/?utm_source=github&utm_medium=referral&utm_campaign=shrimpreel): upload one photo and dance as an elf in Santa's workshop, or at a Christmas party in your own outfit. Two styles, Google sign-in, credit packs and subscriptions, all from this template.
+[Christmas Dance AI](https://christmasdanceai.com/?utm_source=github&utm_medium=referral&utm_campaign=shrimpreel): upload two photos for the [Deck the Halls couple or kitchen duo dance](https://christmasdanceai.com/christmas-couple-dance-ai), or one photo to dance as an elf in Santa's workshop or at a Christmas party in your own outfit. Four styles with soundtrack muxing (two 720p solo, two 480p duo), 20 bilingual guides (including a [look-alike site comparison](https://christmasdanceai.com/christmas-dance-ai-vs-ai-christmas-dance)), Google sign-in, credit packs from $4.99 and subscriptions, all from this template.
 
 > Status: the full flow works locally (unit tests + Playwright e2e), and the site above runs it in production. The template itself is not deployed; [ROADMAP.md](ROADMAP.md) lists what has and hasn't been verified against real services. Code comments, ROADMAP and `docs/` are currently in Chinese.
 
