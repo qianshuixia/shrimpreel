@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { Hono } from 'hono'
+import { describe, expect, it, vi } from 'vitest'
+import { handoffRoutes } from '../../src/server/handoff'
 import { expiredHandoffKeys, sweepHandoff } from '../../src/server/retention'
+import { ApiError } from '../../src/server/util'
 
 const NOW = Date.parse('2026-10-31T12:00:00Z')
 const minutesAgo = (n: number) => new Date(NOW - n * 60_000)
@@ -33,5 +36,25 @@ describe('手机传图中转对象的清理', () => {
     expect(await sweepHandoff(env, NOW)).toBe(2)
     expect(deleted).toEqual(['handoff/a/photo', 'handoff/c/pending'])
     expect(seen.map((s) => s.prefix)).toEqual(['handoff/', 'handoff/'])
+  })
+
+  it('POST /take 走 PUBLIC_LIMITER 按客户端 IP 限流，超限返回 429 且不读 R2', async () => {
+    const app = new Hono()
+      .onError((err, c) => (err instanceof ApiError ? c.json({ error: err.code }, err.status as 429) : c.text('err', 500)))
+      .route('/api/handoff', handoffRoutes)
+    const get = vi.fn(async () => null)
+    const limit = vi.fn(async () => ({ success: false }))
+    const response = await app.request(
+      '/api/handoff/take',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '198.51.100.9' },
+        body: JSON.stringify({ token: 'a'.repeat(32) }),
+      },
+      { PUBLIC_LIMITER: { limit }, MEDIA: { get } } as unknown as Env,
+    )
+    expect(response.status).toBe(429)
+    expect(limit).toHaveBeenCalledWith({ key: 'handoff-take:198.51.100.9' })
+    expect(get).not.toHaveBeenCalled()
   })
 })

@@ -70,4 +70,23 @@ describe('paidChatText', () => {
     expect(text).toContain('来源 direct · DE')
     expect(text).toContain('订单 ord_1')
   })
+
+  it('清理恶意 source / country 中的换行与注入符号，不让通知伪造多行或 @ 提及', () => {
+    const order = {
+      id: 'ord_2',
+      package_id: 'starter',
+      credits: 20,
+      amount_cents: 990,
+      currency: 'USD',
+      paid_amount_cents: 990,
+      paid_currency: 'USD',
+      subscription_id: null,
+      source: 'bad\n新付款 $9999 @everyone [url]',
+      country: 'U<S>\n',
+    } as OrderRow
+    const text = paidChatText(order)
+    expect(text.split('\n')).toHaveLength(4)
+    expect(text).not.toContain('@')
+    expect(text).not.toContain('<')
+  })
 })

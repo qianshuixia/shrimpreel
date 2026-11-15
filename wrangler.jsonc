@@ -6,11 +6,12 @@
   "compatibility_date": "2026-06-19",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
-  "observability": { "enabled": true },
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 },
+  "limits": { "cpu_ms": 30000 },
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/demo/*.mp4"]
   },
   "vars": {
     "APP_ENV": "development",
@@ -59,7 +60,7 @@
     "consumers": [
       {
         "queue": "video-template-jobs",
-        "max_batch_size": 5,
+        "max_batch_size": 1,
         "max_batch_timeout": 2,
         "max_retries": 10,
         "dead_letter_queue": "video-template-jobs-dlq"
@@ -71,7 +72,8 @@
   "ratelimits": [
     { "name": "UPLOAD_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
     { "name": "GENERATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } },
-    { "name": "AUTH_LIMITER", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } }
+    { "name": "AUTH_LIMITER", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } },
+    { "name": "PUBLIC_LIMITER", "namespace_id": "1004", "simple": { "limit": 60, "period": 60 } }
   ],
   // Cloudflare Email Service（交易邮件、管理员提醒）。本地 dev / e2e 只模拟发送；不要加 "remote": true，否则会真的发信
   "send_email": [{ "name": "EMAIL" }],

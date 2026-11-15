@@ -45,6 +45,7 @@ export function stripeClient(env: Env) {
         ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
       },
       body: method === 'POST' ? formEncode(params ?? {}) : undefined,
+      signal: AbortSignal.timeout(20_000),
     })
     const json = (await response.json().catch(() => null)) as Json | null
     if (response.ok) return json ?? {}
@@ -87,6 +88,9 @@ export function createStripeProvider(env: Env): PaymentProvider {
         {
           mode: subscription ? 'subscription' : 'payment',
           line_items: [{ price: priceId, quantity: 1 }],
+          payment_method_types: ['card'],
+          billing_address_collection: 'required',
+          expires_at: Math.floor(Date.now() / 1000) + 35 * 60,
           success_url: input.successUrl,
           cancel_url: input.cancelUrl,
           client_reference_id: input.order.id,

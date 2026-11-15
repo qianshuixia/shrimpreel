@@ -52,14 +52,30 @@ export function registerReportRoutes(routes: Hono<AppContext>) {
              FROM users WHERE created_at >= ? GROUP BY 1 ORDER BY n DESC LIMIT 50`,
           )
           .bind(since),
-        // 注册队列漏斗：窗口内新注册用户里，多少人下过单 / 付过款 / 生成过视频
+        // 注册队列漏斗：窗口内新注册用户先收口为 cohort（仅走 idx_users_created），再按索引关联订单与生成（CROSS JOIN 锁定连接方向，禁止反扫全表）
         db
           .prepare(
-            `SELECT COUNT(*) AS signups,
-               SUM(EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id)) AS checkout,
-               SUM(EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id AND o.status IN ('paid', 'refunded'))) AS paid,
-               SUM(EXISTS (SELECT 1 FROM generations g WHERE g.user_id = u.id)) AS generated
-             FROM users u WHERE u.created_at >= ?`,
+            `WITH cohort AS MATERIALIZED (SELECT id FROM users WHERE created_at >= ?),
+             user_orders AS (
+               SELECT o.user_id, MAX(o.status IN ('paid', 'refunded')) AS has_paid
+               FROM cohort c CROSS JOIN orders o
+               WHERE o.user_id = c.id
+               GROUP BY o.user_id
+             ),
+             user_gens AS (
+               SELECT g.user_id
+               FROM cohort c CROSS JOIN generations g
+               WHERE g.user_id = c.id
+               GROUP BY g.user_id
+             )
+             SELECT
+               COUNT(*) AS signups,
+               COALESCE(SUM(uo.user_id IS NOT NULL), 0) AS checkout,
+               COALESCE(SUM(uo.has_paid), 0) AS paid,
+               COALESCE(SUM(ug.user_id IS NOT NULL), 0) AS generated
+             FROM cohort c
+             LEFT JOIN user_orders uo ON uo.user_id = c.id
+             LEFT JOIN user_gens ug ON ug.user_id = c.id`,
           )
           .bind(since),
         db

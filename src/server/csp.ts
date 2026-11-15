@@ -1,5 +1,5 @@
 // 内容安全策略：先以 Content-Security-Policy-Report-Only 下发，违规报告写进 Worker 日志（[csp]）。
-// 线上观察一段时间没有误报后，把 server.ts 里的响应头名改成 Content-Security-Policy 即可强制执行。
+// 线上观察一段时间没有误报后，把 site.cspReportOnly 改成 false 即可强制执行。
 // 页面内联脚本（主题、GA4 引导、TanStack 水合数据）都带每次请求生成的 nonce（router 的 ssr.nonce），不放开 'unsafe-inline'。
 // 第三方来源按官方文档放行，接入新服务时在这里补：
 //   GA4（不含广告功能）https://developers.google.com/tag-platform/security/guides/csp
@@ -31,6 +31,8 @@ export function contentSecurityPolicy(nonce: string) {
     'style-src': ["'self'", "'unsafe-inline'", 'https://accounts.google.com/gsi/style'],
     // blob:：生成器里上传前的照片预览
     'img-src': ["'self'", 'data:', 'blob:', 'https://www.googletagmanager.com', 'https://*.google-analytics.com', 'https://*.clarity.ms', 'https://c.bing.com'],
+    // /demo/*.mp4、/media/* 与浏览器本地视频预览（blob:）
+    'media-src': ["'self'", 'blob:'],
     'connect-src': [
       "'self'",
       'https://www.googletagmanager.com',
@@ -53,6 +55,8 @@ export function contentSecurityPolicy(nonce: string) {
     .map(([name, values]) => `${name} ${values.join(' ')}`)
     .join('; ')
 }
+
+export const cspHeaderName = (reportOnly: boolean) => (reportOnly ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy')
 
 // 只开放当前用不到的高敏感能力；Google 登录的 FedCM（identity-credentials-get）保持默认
 export const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'

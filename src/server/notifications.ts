@@ -1,4 +1,5 @@
 import { formatPrice, site } from '#/config/site'
+import { sanitizeAttributionLabel } from './attribution'
 import { adminEmails } from './auth'
 import { postChatMessage } from './chat-notify'
 import { runEmailMaintenance, sendEmails, type OutgoingEmail } from './email'
@@ -68,10 +69,12 @@ export function notifyGenerationFinished(env: Env, generationId: string) {
 // 付款即时通知的消息（发给站长，固定中文）
 export function paidChatText(order: OrderRow) {
   const amount = formatPrice(order.paid_amount_cents ?? order.amount_cents, order.paid_currency ?? order.currency)
+  const source = sanitizeAttributionLabel(order.source) ?? 'direct'
+  const country = sanitizeAttributionLabel(order.country)
   return [
     `【${site.brandName}】新付款 ${amount}`,
     `${order.subscription_id ? '订阅' : '积分包'} ${order.package_id} · ${order.credits} 积分`,
-    `来源 ${order.source ?? 'direct'}${order.country ? ` · ${order.country}` : ''}`,
+    `来源 ${source}${country ? ` · ${country}` : ''}`,
     `订单 ${order.id}`,
   ].join('\n')
 }

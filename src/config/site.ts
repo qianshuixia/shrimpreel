@@ -192,9 +192,12 @@ export const site = {
     enabled: false as boolean,
   },
 
-  // Stripe 早期欺诈预警（actionable）时是否自动经支付商全额退掉剩余金额，避免之后的拒付。
-  // 关闭时只通知管理员，由管理员在后台核对后手动退款
-  fraudWarningAutoRefund: false as boolean,
+  // Stripe 早期欺诈预警（actionable）时是否自动经支付商全额退掉剩余金额并立即回收剩余积分，避免之后的拒付。
+  // 默认开启；设为 false 时只通知管理员，由管理员在后台核对后手动退款
+  fraudWarningAutoRefund: true as boolean,
+
+  // CSP 是否仅上报（Report-Only）。上线观察 [csp] 日志无误报后改为 false 即可切到强制执行 Content-Security-Policy
+  cspReportOnly: true as boolean,
 
   // SEO 文章（指南），按展示顺序排列。slug 是根路径：/<slug> 与 /zh/<slug>；正文在 src/content/<locale>.ts 的 articles[key]。
   // 新增文章：这里加一项，各语言 content 的 articles 补同名 key（缺了 typecheck 会报错）。

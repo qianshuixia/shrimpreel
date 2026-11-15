@@ -57,9 +57,9 @@ handoffRoutes.post('/photo', async (c) => {
   return c.json({ ok: true }, 201)
 })
 
-// 桌面每 2 秒轮询一次，不限流：UPLOAD_LIMITER 是每分钟 20 次，会把正常轮询挡成 429。
-// 每次只有 1~2 次 R2 读（A 类写操作为 0），要猜中 256 位随机 token 才有内容，最坏的滥用是浪费读配额，交给 Cloudflare 层的速率规则
+// 桌面每 2 秒轮询一次，走 PUBLIC_LIMITER（每分钟 60 次）按 IP 限流，正常轮询约 30 次/分钟可放行，防恶意刷 R2 读配额
 handoffRoutes.post('/take', async (c) => {
+  await rateLimit(c.env.PUBLIC_LIMITER, `handoff-take:${clientIp(c)}`)
   const body = await readJson<{ token: string }>(c)
   const keys = await keysFor(body.token)
   c.header('Cache-Control', 'no-store')

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, errorCode, type ClientConfig, type PublicUser } from './api'
 import { CONSENT_REQUIRED } from './consent'
 import { captureAttribution, track } from './attribution'
@@ -18,13 +18,15 @@ const SessionContext = createContext<SessionState | null>(null)
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null)
   const [config, setConfig] = useState<ClientConfig | null>(null)
+  const [oneTapNonce, setOneTapNonce] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
     try {
-      const data = await api<{ user: PublicUser | null; config: ClientConfig }>('/api/me')
+      const data = await api<{ user: PublicUser | null; config: ClientConfig; oneTapNonce?: string | null }>('/api/me')
       setUser(data.user)
       setConfig(data.config)
+      setOneTapNonce(data.oneTapNonce ?? null)
     } catch (error) {
       console.error('session load failed', error)
     } finally {
@@ -35,6 +37,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await api('/api/auth/logout', { method: 'POST', json: {} })
     setUser(null)
+    setOneTapNonce(null)
     // 共用电脑：退出登录时一并清掉还没用的照片草稿
     await clearDraft()
   }, [])
@@ -60,7 +63,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return (
     <SessionContext.Provider value={value}>
       {children}
-      {!loading && !user && config?.googleClientId ? <GoogleOneTap clientId={config.googleClientId} onSignedIn={refresh} /> : null}
+      {!loading && !user && config?.googleClientId ? <GoogleOneTap clientId={config.googleClientId} initialNonce={oneTapNonce} onSignedIn={refresh} /> : null}
     </SessionContext.Provider>
   )
 }
@@ -87,7 +90,8 @@ type GoogleId = {
   }
 }
 
-function GoogleOneTap({ clientId, onSignedIn }: { clientId: string; onSignedIn: () => Promise<void> }) {
+function GoogleOneTap({ clientId, initialNonce, onSignedIn }: { clientId: string; initialNonce: string | null; onSignedIn: () => Promise<void> }) {
+  const initialNonceRef = useRef(initialNonce)
   useEffect(() => {
     if (location.pathname.startsWith('/admin') || location.pathname.includes('sign-in')) return
     let cancelled = false
@@ -119,12 +123,17 @@ function GoogleOneTap({ clientId, onSignedIn }: { clientId: string; onSignedIn: 
       })
       google.accounts.id.prompt()
     }
-    nonce = api<{ nonce: string }>('/api/auth/google/nonce')
-      .then((data) => data.nonce)
-      .catch((error) => {
-        console.error('one tap nonce failed', error)
-        return null
-      })
+    // 优先使用 /api/me 随会话下发的 One Tap nonce，减少一次冷启动网络请求；退出登录后等场景回退单独拉取
+    const preissued = initialNonceRef.current
+    initialNonceRef.current = null
+    nonce = preissued
+      ? Promise.resolve(preissued)
+      : api<{ nonce: string }>('/api/auth/google/nonce')
+          .then((data) => data.nonce)
+          .catch((error) => {
+            console.error('one tap nonce failed', error)
+            return null
+          })
     const existing = document.querySelector<HTMLScriptElement>('script[data-gsi]')
     if (existing) {
       void start()

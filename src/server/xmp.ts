@@ -8,6 +8,24 @@ interface FixedLength {
   writable: WritableStream<Uint8Array>
 }
 
+export async function appendXmpToBytes(
+  video: Uint8Array,
+  fields: XmpFields,
+): Promise<{ bytes: Uint8Array; result: TagResult }> {
+  const read: RangeReader = async (offset, length) => video.subarray(offset, offset + length)
+  const inspection = await inspectForXmp(read, video.byteLength)
+  if (inspection.kind === 'has_xmp') return { bytes: video, result: 'already_tagged' }
+  if (inspection.kind === 'unsupported') {
+    console.warn('output xmp skipped', { generationId: fields.generationId, reason: inspection.reason })
+    return { bytes: video, result: 'skipped' }
+  }
+  const box = buildXmpBox(buildXmpPacket(fields))
+  const tagged = new Uint8Array(video.byteLength + box.byteLength)
+  tagged.set(video, 0)
+  tagged.set(box, video.byteLength)
+  return { bytes: tagged, result: 'tagged' }
+}
+
 // 给已存进 R2 的成片追加 XMP uuid box，不把整个文件读进内存：
 // 1) 用几次 range 读取遍历顶层 box 头，确认还没有标记、最后一个 box 长度明确（size=0 的 box 会吞掉追加的内容）
 // 2) 用 FixedLengthStream（总长 = 原长 + box 长）把原流 + box 写回同一个 key；put 带 etag 条件，期间被别的路径覆盖则放弃

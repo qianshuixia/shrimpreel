@@ -67,6 +67,138 @@ export async function serveR2Object(
   return new Response(object.body, { status: 200, headers })
 }
 
+const DEMO_MP4_PATH = /^\/demo\/([a-zA-Z0-9._-]+\.mp4)$/
+
+// 解析 HTTP Range: bytes=...（支持 start-end、start- 与 -suffix）；未知单位按规范忽略（返回 null）
+export function parseByteRange(rangeHeader: string | null, totalSize: number): { start: number; end: number } | 'unsatisfiable' | null {
+  const trimmed = rangeHeader?.trim()
+  if (!trimmed || !/^bytes=/i.test(trimmed)) return null
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(trimmed)
+  if (!match || totalSize <= 0) return 'unsatisfiable'
+  const [, rawStart, rawEnd] = match
+  let start: number
+  let end: number
+  if (!rawStart && !rawEnd) return 'unsatisfiable'
+  if (!rawStart) {
+    const suffix = Number(rawEnd)
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return 'unsatisfiable'
+    start = Math.max(0, totalSize - suffix)
+    end = totalSize - 1
+  } else if (!rawEnd) {
+    start = Number(rawStart)
+    end = totalSize - 1
+  } else {
+    start = Number(rawStart)
+    end = Math.min(Number(rawEnd), totalSize - 1)
+  }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end || start >= totalSize) {
+    return 'unsatisfiable'
+  }
+  return { start, end }
+}
+
+// 仅从流中裁剪 [start, end] 字节并立即 cancel 上游读取，Safari 发 Range: bytes=0-1 时零全量缓存
+export function sliceByteStream(body: ReadableStream<Uint8Array>, start: number, end: number): ReadableStream<Uint8Array<ArrayBuffer>> {
+  const reader = body.getReader()
+  let offset = 0
+  return new ReadableStream<Uint8Array<ArrayBuffer>>({
+    async pull(controller) {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) {
+          controller.close()
+          return
+        }
+        const chunkStart = offset
+        const chunkEnd = offset + value.byteLength - 1
+        offset += value.byteLength
+        if (chunkEnd < start) continue
+        const sliceStart = Math.max(0, start - chunkStart)
+        const sliceEnd = Math.min(value.byteLength, end - chunkStart + 1)
+        if (sliceEnd > sliceStart) controller.enqueue(new Uint8Array(value.subarray(sliceStart, sliceEnd)))
+        if (offset > end) {
+          await reader.cancel().catch(() => {})
+          controller.close()
+          return
+        }
+        return
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    },
+  })
+}
+
+// P0-4：接管 Static Assets 下 /demo/*.mp4，优先读取 R2 demo/<name>，否则从 env.ASSETS 按 Range 切片输出 206 Partial Content
+export async function handleDemoVideoRequest(request: Request, env: Env, pathname: string): Promise<Response | null> {
+  const match = DEMO_MP4_PATH.exec(pathname)
+  if (!match) return null
+  const cacheControl = 'public, max-age=604800'
+  const r2Response = await serveR2Object(env.MEDIA, `demo/${match[1]}`, request, { cacheControl })
+  if (r2Response.status !== 404) {
+    if (request.method === 'HEAD') {
+      await r2Response.body?.cancel()
+      return new Response(null, { status: r2Response.status, headers: r2Response.headers })
+    }
+    return r2Response
+  }
+
+  if (!env.ASSETS) return null
+  const asset = await env.ASSETS.fetch(new Request(new URL(pathname, request.url).toString(), { method: 'GET' }))
+  if (!asset.ok) {
+    await asset.body?.cancel()
+    return new Response('Not found', { status: asset.status === 404 ? 404 : 502 })
+  }
+  const etag = asset.headers.get('etag')
+  if (etag && request.headers.get('if-none-match') === etag) {
+    await asset.body?.cancel()
+    return new Response(null, { status: 304, headers: { ETag: etag, 'Accept-Ranges': 'bytes', 'Cache-Control': cacheControl } })
+  }
+
+  let total = Number(asset.headers.get('content-length') ?? NaN)
+  let fallbackBytes: Uint8Array<ArrayBuffer> | null = null
+  if (!Number.isSafeInteger(total) || total < 0 || !asset.body) {
+    fallbackBytes = new Uint8Array(await asset.arrayBuffer())
+    total = fallbackBytes.byteLength
+  }
+
+  const headers = new Headers({
+    'Content-Type': asset.headers.get('content-type') || 'video/mp4',
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': cacheControl,
+  })
+  if (etag) headers.set('ETag', etag)
+
+  const parsed = parseByteRange(request.headers.get('range'), total)
+  if (parsed === 'unsatisfiable') {
+    await asset.body?.cancel()
+    headers.set('Content-Range', `bytes */${total}`)
+    return new Response(null, { status: 416, headers })
+  }
+  if (parsed) {
+    const length = parsed.end - parsed.start + 1
+    headers.set('Content-Range', `bytes ${parsed.start}-${parsed.end}/${total}`)
+    headers.set('Content-Length', String(length))
+    if (request.method === 'HEAD') {
+      await asset.body?.cancel()
+      return new Response(null, { status: 206, headers })
+    }
+    const body: BodyInit = fallbackBytes
+      ? fallbackBytes.slice(parsed.start, parsed.end + 1)
+      : sliceByteStream(asset.body!, parsed.start, parsed.end)
+    return new Response(body, { status: 206, headers })
+  }
+
+  headers.set('Content-Length', String(total))
+  if (request.method === 'HEAD') {
+    await asset.body?.cancel()
+    return new Response(null, { status: 200, headers })
+  }
+  const body: BodyInit | null = fallbackBytes ?? (asset.body as ReadableStream<Uint8Array<ArrayBuffer>> | null)
+  return new Response(body, { status: 200, headers })
+}
+
 // 只认真实图片：按文件头魔数判断，不信任客户端传的 Content-Type
 export function sniffImageType(bytes: Uint8Array): 'image/jpeg' | 'image/png' | 'image/webp' | null {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'

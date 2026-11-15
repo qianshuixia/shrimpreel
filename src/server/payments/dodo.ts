@@ -32,6 +32,7 @@ export function createDodoProvider(env: Env): PaymentProvider {
       method,
       headers: { Authorization: `Bearer ${apiKey}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
     })
     const json = (await response.json().catch(() => null)) as Record<string, unknown> | null
     if (!response.ok) {
@@ -57,6 +58,7 @@ export function createDodoProvider(env: Env): PaymentProvider {
           return_url: input.successUrl,
           metadata: { orderId: input.order.id, userId: input.user.id, packageId: input.order.packageId, site: site.domain },
         }),
+        signal: AbortSignal.timeout(20_000),
       })
       const body = (await response.json().catch(() => null)) as { session_id?: string; checkout_url?: string } | null
       if (!response.ok || !body?.checkout_url) {
@@ -83,6 +85,7 @@ export function createDodoProvider(env: Env): PaymentProvider {
           metadata: { orderId: input.orderId },
           ...(input.fullAmount ? {} : { items: [{ item_id: productId, amount: input.amountCents, tax_inclusive: true }] }),
         }),
+        signal: AbortSignal.timeout(20_000),
       })
       const body = (await response.json().catch(() => null)) as { refund_id?: string; status?: string; message?: string } | null
       // 409 是业务冲突，原样透传给后台。实测（test 模式）：钱包余额不足时返回 "Insufficient funds in wallet"
@@ -100,7 +103,7 @@ export function createDodoProvider(env: Env): PaymentProvider {
       if (!apiKey) throw new ApiError(503, 'payment_not_configured', 'DODO_API_KEY missing')
       if (!order.providerSessionId) return null
       const get = async (path: string) => {
-        const response = await fetch(`${baseUrl}${path}`, { headers: { Authorization: `Bearer ${apiKey}` } })
+        const response = await fetch(`${baseUrl}${path}`, { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(20_000) })
         if (response.status === 404) return null
         if (!response.ok) throw new ApiError(502, 'payment_provider_error', `Dodo GET ${path.split('/')[1]} failed (HTTP ${response.status})`)
         return (await response.json()) as Record<string, unknown>

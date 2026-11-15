@@ -32,6 +32,7 @@ export function createOpenAiModeration(apiKey: string, fetcher: typeof fetch = f
             model: 'omni-moderation-latest',
             input: [{ type: 'image_url', image_url: { url: `data:${contentType};base64,${base64Encode(bytes)}` } }],
           }),
+          signal: AbortSignal.timeout(15_000),
         })
       } catch (error) {
         console.error('moderation request failed', error)

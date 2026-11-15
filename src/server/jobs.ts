@@ -7,17 +7,114 @@ import { reconcilePendingOrders } from './reconcile'
 import type { GenerationRow, UploadRow, VideoJobMessage } from './types'
 import { sweepExpiredMedia, sweepHandoff } from './retention'
 import { grantDueSubscriptions } from './subscriptions'
-import { nowIso } from './util'
+import { nowIso, isProduction } from './util'
 import { getVideoProvider } from './video'
 import { videoModelName } from './video/model-name'
 import { VideoProviderError } from './video/types'
-import { addStyleMusic } from './music'
-import { tagOutputWithXmp } from './xmp'
+import { muxStyleMusicBytes } from './music'
+import { appendXmpToBytes, tagOutputWithXmp } from './xmp'
 
 const JOB_TIMEOUT_MINUTES = 45
-// 成片大小上限：带 Content-Length 时直接流式写入 R2，不占 Worker 内存；没带时只能边读边缓存，上限更低（Worker 内存 128 MB）
+// 成片大小上限：带 Content-Length 且超缓冲上限时直接流式写入 R2，不占 Worker 内存；没带时最多读 24 MB（128 MB Isolate 红线）
 export const MAX_OUTPUT_BYTES = 100 * 1024 * 1024
-export const MAX_BUFFERED_OUTPUT_BYTES = 48 * 1024 * 1024
+export const MAX_BUFFERED_OUTPUT_BYTES = 24 * 1024 * 1024
+export const OUTPUT_DOWNLOAD_TIMEOUT_MS = 60_000
+const MAX_OUTPUT_REDIRECTS = 5
+const VIDEO_CONTENT_TYPE = 'video/mp4'
+
+function isDisallowedDownloadHost(hostname: string) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (host === 'localhost' || host === '::1' || host.endsWith('.local') || host.endsWith('.internal')) return true
+  if (host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80:')) return true
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
+  if (!ipv4) return false
+  const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+}
+
+// P2-3：下载上游成片和每一跳重定向只允许 https:（仅非生产环境的本机环回测试放行 http://localhost / 127.0.0.1）
+export function assertSafeOutputUrl(rawUrl: string, env: Env) {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    throw new Error('unsafe output url: invalid')
+  }
+  const localHttpOk = !isProduction(env) && parsed.protocol === 'http:' && (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost')
+  if (parsed.protocol !== 'https:' && !localHttpOk) {
+    throw new Error(`unsafe output url protocol: ${parsed.protocol}`)
+  }
+  if (isProduction(env) && isDisallowedDownloadHost(parsed.hostname)) {
+    throw new Error(`unsafe output url host: ${parsed.hostname}`)
+  }
+  return parsed.toString()
+}
+
+async function fetchSafeOutput(env: Env, url: string): Promise<Response> {
+  let currentUrl = assertSafeOutputUrl(url, env)
+  for (let hop = 0; hop <= MAX_OUTPUT_REDIRECTS; hop++) {
+    const response = await fetch(currentUrl, { redirect: 'manual', signal: AbortSignal.timeout(OUTPUT_DOWNLOAD_TIMEOUT_MS) })
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location')
+      await response.body?.cancel()
+      if (!location) throw new Error(`download output failed: HTTP ${response.status} without location`)
+      if (hop === MAX_OUTPUT_REDIRECTS) throw new Error('download output failed: too many redirects')
+      currentUrl = assertSafeOutputUrl(new URL(location, currentUrl).toString(), env)
+      continue
+    }
+    if (!response.ok) throw new Error(`download output failed: HTTP ${response.status}`)
+    return response
+  }
+  throw new Error('download output failed: too many redirects')
+}
+
+async function readBoundedBody(response: Response, declared: number, maxBytes: number): Promise<Uint8Array | null> {
+  if (!response.body) throw new Error('download output failed: empty body')
+  const reader = response.body.getReader()
+  const chunks: Array<Uint8Array | null> = []
+  let size = 0
+
+  if (Number.isSafeInteger(declared) && declared > 0 && declared <= maxBytes) {
+    const bytes = new Uint8Array(declared)
+    let offset = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return offset === declared ? bytes : bytes.subarray(0, offset)
+      if (offset + value.byteLength > maxBytes) {
+        await reader.cancel()
+        return null
+      }
+      if (offset + value.byteLength > bytes.byteLength) {
+        // 服务端实际响应略大于声明的 Content-Length：把已读前缀转入通用分块队列继续读到 EOF
+        chunks.push(bytes.subarray(0, offset), value)
+        size = offset + value.byteLength
+        break
+      }
+      bytes.set(value, offset)
+      offset += value.byteLength
+    }
+  }
+
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i]!
+    chunks[i] = null
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes
+}
 
 // 把服务商给的成片地址存进 R2；超过上限返回 false（调用方判失败、退积分），不把超大文件读进内存
 export async function storeOutputFromUrl(
@@ -26,40 +123,20 @@ export async function storeOutputFromUrl(
   key: string,
   limits = { streamed: MAX_OUTPUT_BYTES, buffered: MAX_BUFFERED_OUTPUT_BYTES },
 ) {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`download output failed: HTTP ${response.status}`)
-  const httpMetadata = { contentType: 'video/mp4' }
+  const response = await fetchSafeOutput(env, url)
+  const httpMetadata = { contentType: VIDEO_CONTENT_TYPE }
   const header = response.headers.get('content-length')
   const declared = header === null ? NaN : Number(header)
-  if (Number.isSafeInteger(declared) && declared > 0) {
+  if (Number.isSafeInteger(declared) && declared > limits.buffered) {
     if (declared > limits.streamed) {
       await response.body?.cancel()
       return false
     }
-    // 运行时保证响应体和 Content-Length 一致，R2 也只接受长度已知的流
     await env.MEDIA.put(key, response.body, { httpMetadata })
     return true
   }
-  if (!response.body) throw new Error('download output failed: empty body')
-  const chunks: Uint8Array[] = []
-  let size = 0
-  const reader = response.body.getReader()
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.byteLength
-    if (size > limits.buffered) {
-      await reader.cancel()
-      return false
-    }
-    chunks.push(value)
-  }
-  const bytes = new Uint8Array(size)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
-  }
+  const bytes = await readBoundedBody(response, declared, limits.buffered)
+  if (!bytes) return false
   await env.MEDIA.put(key, bytes, { httpMetadata })
   return true
 }
@@ -153,6 +230,7 @@ async function submitGeneration(env: Env, generation: GenerationRow) {
       sourceVideoKey: `templates/${sourceFile}`,
       webhookUrl: webhookUrl.toString(),
       meta: baseMeta,
+      isRetry: generation.attempts > 0,
     })
     const now = nowIso()
     await env.DB.prepare(
@@ -215,10 +293,41 @@ async function pollGeneration(env: Env, generation: GenerationRow) {
   }
 
   const outputKey = `outputs/${generation.user_id}/${generation.id}.mp4`
+  const now = nowIso()
+  const musicFile = findStyle(generation.template_id)?.music?.[generation.duration_id]
+  const xmpFields = site.aiMetadata.enabled
+    ? {
+        generationId: generation.id,
+        brand: site.brandName,
+        model: videoModelName(generation.provider),
+        provider: generation.provider,
+        createdAt: now,
+        verifyUrl: new URL(`/verify?id=${encodeURIComponent(generation.id)}`, env.SITE_URL).toString(),
+      }
+    : null
+
+  // 合并成片下载/读取、混音与 XMP 写入为单次 R2 put（超大流式视频则直接流到 R2 后再按 Range 流式追加 XMP）
+  let needsStreamingXmp = false
+  let buffered: Uint8Array | null = null
   if ('url' in status.output) {
-    if (!(await storeOutputFromUrl(env, status.output.url, outputKey))) {
-      await failGeneration(env, generation.id, 'output_too_large', 'Provider output exceeds the size limit')
-      return
+    const response = await fetchSafeOutput(env, status.output.url)
+    const header = response.headers.get('content-length')
+    const declared = header === null ? NaN : Number(header)
+    if (Number.isSafeInteger(declared) && declared > MAX_BUFFERED_OUTPUT_BYTES) {
+      if (declared > MAX_OUTPUT_BYTES) {
+        await response.body?.cancel()
+        await failGeneration(env, generation.id, 'output_too_large', 'Provider output exceeds the size limit')
+        return
+      }
+      if (musicFile) console.warn('output music skipped', { generationId: generation.id, reason: 'too_large' })
+      await env.MEDIA.put(outputKey, response.body, { httpMetadata: { contentType: VIDEO_CONTENT_TYPE } })
+      needsStreamingXmp = xmpFields !== null
+    } else {
+      buffered = await readBoundedBody(response, declared, MAX_BUFFERED_OUTPUT_BYTES)
+      if (!buffered) {
+        await failGeneration(env, generation.id, 'output_too_large', 'Provider output exceeds the size limit')
+        return
+      }
     }
   } else {
     const source = await env.MEDIA.get(status.output.r2Key)
@@ -226,12 +335,27 @@ async function pollGeneration(env: Env, generation: GenerationRow) {
       await failGeneration(env, generation.id, 'output_missing', `R2 object ${status.output.r2Key} not found`)
       return
     }
-    await env.MEDIA.put(outputKey, await source.arrayBuffer(), { httpMetadata: { contentType: 'video/mp4' } })
+    if (source.size > MAX_BUFFERED_OUTPUT_BYTES) {
+      if (source.size > MAX_OUTPUT_BYTES) {
+        await source.body.cancel()
+        await failGeneration(env, generation.id, 'output_too_large', 'Provider output exceeds the size limit')
+        return
+      }
+      if (musicFile) console.warn('output music skipped', { generationId: generation.id, reason: 'too_large' })
+      await env.MEDIA.put(outputKey, source.body, { httpMetadata: { contentType: VIDEO_CONTENT_TYPE } })
+      needsStreamingXmp = xmpFields !== null
+    } else {
+      buffered = new Uint8Array(await source.arrayBuffer())
+    }
   }
-  // 风格配了背景音乐：先混流再审核和打 XMP，这样审核看到的就是最终成片；失败只 warn，成片保持原样
-  const musicFile = findStyle(generation.template_id)?.music?.[generation.duration_id]
-  if (musicFile) await addStyleMusic(env.MEDIA, outputKey, musicFile, generation.id)
-  const now = nowIso()
+
+  if (buffered) {
+    if (musicFile) buffered = (await muxStyleMusicBytes(env.MEDIA, buffered, musicFile, generation.id)).bytes
+    if (xmpFields) buffered = (await appendXmpToBytes(buffered, xmpFields)).bytes
+    await env.MEDIA.put(outputKey, buffered, { httpMetadata: { contentType: VIDEO_CONTENT_TYPE } })
+    buffered = null
+  }
+
   // 审核服务不可用时抛错，队列重试（不判失败）；不通过则删掉成片、失败退积分
   const verdict = await moderateOutput(env, generation, outputKey)
   if (!verdict.allowed) {
@@ -239,16 +363,8 @@ async function pollGeneration(env: Env, generation: GenerationRow) {
     if (await failGeneration(env, generation.id, 'output_moderation_rejected', verdict.reason)) await env.MEDIA.delete(outputKey)
     return
   }
-  // 机器可读的 AI 标记（XMP）：创建时间与 completed_at 一致；站点开关 aiMetadata 关闭时成片保持原样
-  if (site.aiMetadata.enabled) {
-    await tagOutputWithXmp(env.MEDIA, outputKey, {
-      generationId: generation.id,
-      brand: site.brandName,
-      model: videoModelName(generation.provider),
-      provider: generation.provider,
-      createdAt: now,
-      verifyUrl: new URL(`/verify?id=${encodeURIComponent(generation.id)}`, env.SITE_URL).toString(),
-    })
+  if (needsStreamingXmp && xmpFields) {
+    await tagOutputWithXmp(env.MEDIA, outputKey, xmpFields)
   }
   const costCents = status.costCents ?? provider.costCents(generation.duration_seconds, generation.template_id)
   const saved = await env.DB.prepare(
@@ -338,6 +454,13 @@ export async function runScheduledMaintenance(env: Env) {
     db
       .prepare(`UPDATE orders SET status = 'canceled', updated_at = ? WHERE status = 'pending' AND created_at < ?`)
       .bind(now, new Date(Date.now() - 24 * 3600_000).toISOString()),
+    db
+      .prepare(
+        `UPDATE subscriptions
+         SET status = 'expired', ended_at = COALESCE(ended_at, current_period_end), next_grant_at = NULL, updated_at = ?
+         WHERE status IN ('active', 'past_due') AND cancel_at_period_end = 1 AND current_period_end IS NOT NULL AND current_period_end < ?`,
+      )
+      .bind(now, now),
     ...expireStatements(db, now),
   ])
 

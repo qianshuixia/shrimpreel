@@ -132,4 +132,14 @@ describe('handleUmamiProxy', () => {
     expect(await script?.text()).not.toContain('umami.example.com')
     for (const call of vi.mocked(console.warn).mock.calls) expect(JSON.stringify(call)).not.toContain('umami.example.com')
   })
+
+  it('send：PUBLIC_LIMITER 超限时返回 429，不读取正文也不请求上游', async () => {
+    const fetchMock = mockFetch(() => new Response('ok'))
+    const limit = vi.fn(async () => ({ success: false }))
+    const limitedEnv = { ...env, PUBLIC_LIMITER: { limit } } as unknown as Env
+    const response = await handleUmamiProxy(send({ payload: { website: 'w' } }, { 'CF-Connecting-IP': '198.51.100.2' }), limitedEnv)
+    expect(limit).toHaveBeenCalledWith({ key: 'umami:198.51.100.2' })
+    expect(response?.status).toBe(429)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

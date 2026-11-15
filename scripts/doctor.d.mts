@@ -9,6 +9,7 @@ export function parsePendingMigrations(output: string): string[] | null
 export function parseSecretNames(output: string): string[] | null
 export type SiteTodo = { file: string; line: number; text: string }
 export function findSiteTodos(root?: string): SiteTodo[]
+export function findDirtyFiles(root?: string): string[] | null
 export function runDoctor(
   config: WranglerConfig,
   options?: {
@@ -19,5 +20,6 @@ export function runDoctor(
     planIds?: string[]
     styleProviders?: string[]
     siteTodos?: SiteTodo[]
+    dirtyFiles?: string[] | null
   },
 ): ConfigIssue[]

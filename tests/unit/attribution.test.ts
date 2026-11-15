@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyTouch, deviceFromUserAgent, parseAttribution } from '#/server/attribution'
+import { classifyTouch, deviceFromUserAgent, parseAttribution, sanitizeAttributionLabel } from '#/server/attribution'
 import { csvCell } from '#/server/reports'
 
 describe('classifyTouch', () => {
@@ -48,6 +48,15 @@ describe('classifyTouch', () => {
     }
     expect(classifyTouch({ referrer: 'https://accounts.google.com/', utm_source: 'github' })).toMatchObject({ source: 'github' })
     expect(classifyTouch({ referrer: 'https://www.google.com/search' })).toMatchObject({ source: 'google', medium: 'organic' })
+  })
+
+  it('归因标签剥离控制字符、换行及 HTML/Markdown/@ 提及符号', () => {
+    expect(sanitizeAttributionLabel('<script>\n@everyone`test`[evil]</script>')).toBe('scripteveryonetestevil/script')
+    expect(classifyTouch({ utm_source: 'bad\nsource@all', utm_medium: 'c[p]c', utm_campaign: '<camp>\r' })).toEqual({
+      source: 'badsOURCEall'.toLowerCase(),
+      medium: 'cpc',
+      campaign: 'camp',
+    })
   })
 })
 

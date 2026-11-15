@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { defaultStyle, findPackage, findPlan, findStyle, findStyleDuration, isLocale, localePath, sellingPlans, site, stylePhotoCount } from '#/config/site'
@@ -112,13 +112,31 @@ app.post(CLIENT_ERROR_PATH, async (c) => {
   return c.body(null, 204)
 })
 
+const ONE_TAP_NONCE_COOKIE = 'g_nonce'
+
+function issueOneTapNonce(c: Context<AppContext>): string {
+  const nonce = randomToken(18)
+  setCookie(c, ONE_TAP_NONCE_COOKIE, nonce, {
+    httpOnly: true,
+    secure: isProduction(c.env),
+    sameSite: 'Strict',
+    path: '/api/auth/google',
+    maxAge: 600,
+  })
+  return nonce
+}
+
 app.get('/api/me', async (c) => {
   const user = c.get('user')
   const settings = await getSettings(c.env)
+  const clientId = googleClientId(c.env) ?? null
+  const oneTapNonce = !user && clientId ? issueOneTapNonce(c) : null
+  c.header('Cache-Control', 'no-store')
   return c.json({
     user: user ? publicUser(user) : null,
+    oneTapNonce,
     config: {
-      googleClientId: googleClientId(c.env) ?? null,
+      googleClientId: clientId,
       devLogin: !isProduction(c.env),
       paymentProvider: settings.paymentProvider || c.env.PAYMENT_PROVIDER,
       turnstileSiteKey: turnstileSiteKey(c.env),
@@ -128,8 +146,6 @@ app.get('/api/me', async (c) => {
 })
 
 // ---------- Auth ----------
-
-const ONE_TAP_NONCE_COOKIE = 'g_nonce'
 
 app.get('/api/auth/google/start', async (c) => {
   await rateLimit(c.env.AUTH_LIMITER, c.req.header('cf-connecting-ip') ?? 'local')
@@ -182,14 +198,7 @@ app.get('/api/auth/google/callback', async (c) => {
 // One Tap 初始化前先取 nonce：同一个值存进只发往登录接口的 cookie，Google 签进 id_token，提交时两者必须一致
 app.get('/api/auth/google/nonce', (c) => {
   if (!googleClientId(c.env)) throw new ApiError(503, 'google_not_configured')
-  const nonce = randomToken(18)
-  setCookie(c, ONE_TAP_NONCE_COOKIE, nonce, {
-    httpOnly: true,
-    secure: isProduction(c.env),
-    sameSite: 'Strict',
-    path: '/api/auth/google',
-    maxAge: 600,
-  })
+  const nonce = issueOneTapNonce(c)
   c.header('Cache-Control', 'no-store')
   return c.json({ nonce })
 })

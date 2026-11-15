@@ -21,6 +21,7 @@ export function createResendMailer(apiKey: string): Mailer {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ from: `${from.name} <${from.email}>`, to: [to], subject, text, html, reply_to: replyTo }),
+          signal: AbortSignal.timeout(15_000),
         })
       } catch (error) {
         throw sendError('E_INTERNAL_SERVER_ERROR', `resend network error: ${error instanceof Error ? error.message : String(error)}`, apiKey)

@@ -116,6 +116,19 @@ describe('nanoapi provider：提交', () => {
     expect(Math.abs(age - 3 * 3600 * 1000)).toBeLessThan(5000)
   })
 
+  it('首次提交（isRetry: false）跳过历史列表去重直接 POST，队列重试（isRetry: true）才回溯查重', async () => {
+    const calls = stubFetch({
+      'GET /v1/tasks': () => ok({ items: [task('tk_existing', input().imageUrls[0]!, input().sourceVideoUrl)], has_more: false }),
+      'POST /v1/tasks': () => ok({ id: 'tk_fresh', status: 'queued' }),
+    })
+    const provider = createNanoapiProvider(env())
+    expect(await provider.submit({ ...input(), isRetry: false })).toEqual({ requestId: 'tk_fresh', meta: {} })
+    expect(calls.map((c) => c.method)).toEqual(['POST'])
+
+    expect(await provider.submit({ ...input(), isRetry: true })).toEqual({ requestId: 'tk_existing', meta: {} })
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'GET'])
+  })
+
   it('双人：image_urls 带两张，去重要求任务里包含全部图片地址', async () => {
     const two = [...input().imageUrls, 'https://moonhop.ai/media/uploads/upl_2?exp=1&sig=s2']
     const duo = { ...input(), imageUrls: two }

@@ -19,7 +19,7 @@ export async function verifyTurnstile(env: Env, token: unknown, remoteIp: string
   if (remoteIp) body.append('remoteip', remoteIp)
   let data: { success?: boolean; 'error-codes'?: string[] }
   try {
-    const response = await fetcher(SITEVERIFY_URL, { method: 'POST', body })
+    const response = await fetcher(SITEVERIFY_URL, { method: 'POST', body, signal: AbortSignal.timeout(15_000) })
     if (!response.ok) throw new Error(`siteverify HTTP ${response.status}`)
     data = (await response.json()) as typeof data
   } catch (error) {

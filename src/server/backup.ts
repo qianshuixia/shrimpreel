@@ -15,6 +15,11 @@ export const BACKUP_RETENTION_DAYS = 30
 const MAX_ATTEMPTS_PER_DAY = 3
 // 只导结构不导数据的表：会话 token 哈希没有恢复价值，留在备份里只会增加泄露面
 const SCHEMA_ONLY = new Set(['sessions'])
+const PAGE_SIZE = 500
+const INSERT_BATCH_ROWS = 25
+const INSERT_MAX_CHARS = 48_000
+// R2 Multipart 要求除最后一片外每片至少 5 MB；小于 5 MB 的小库直接单次 put，大于则分片落盘（峰值内存恒定 < 15 MB）
+export const BACKUP_MULTIPART_BYTES = 5 * 1024 * 1024
 
 type SqlValue = string | number | null | ArrayBuffer | number[]
 
@@ -44,8 +49,40 @@ export interface DumpResult {
   rows: number
 }
 
-export async function dumpDatabase(db: D1Database, now = new Date()): Promise<DumpResult> {
-  // _cf_* 是 D1 内部表，sqlite_* 由 SQLite 维护；自动索引（sqlite_autoindex_*）没有 sql
+async function queryTablePage(
+  db: D1Database,
+  tableName: string,
+  cursor: { useRowId: boolean; lastRowId: number; offset: number },
+): Promise<{ rows: Array<Record<string, SqlValue>>; nextCursor: typeof cursor }> {
+  if (cursor.useRowId) {
+    try {
+      const page = await db
+        .prepare(`SELECT rowid AS __backup_rowid, * FROM ${ident(tableName)} WHERE rowid > ? ORDER BY rowid LIMIT ?`)
+        .bind(cursor.lastRowId, PAGE_SIZE)
+        .all<Record<string, SqlValue> & { __backup_rowid: number }>()
+      const raw = page.results ?? []
+      const last = raw.at(-1)?.__backup_rowid ?? cursor.lastRowId
+      const rows = raw.map(({ __backup_rowid: _ignored, ...rest }) => rest)
+      return { rows, nextCursor: { useRowId: true, lastRowId: last, offset: cursor.offset + rows.length } }
+    } catch (error) {
+      // WITHOUT ROWID 表回退 OFFSET 分页
+      if (!(error instanceof Error && /no such column:\s*rowid/i.test(error.message))) throw error
+    }
+  }
+  const page = await db
+    .prepare(`SELECT * FROM ${ident(tableName)} LIMIT ? OFFSET ?`)
+    .bind(PAGE_SIZE, cursor.offset)
+    .all<Record<string, SqlValue>>()
+  const rows = page.results ?? []
+  return { rows, nextCursor: { useRowId: false, lastRowId: 0, offset: cursor.offset + rows.length } }
+}
+
+// 按页读取全部表并分片流出 SQL，避免整库 SELECT * 在 128 MB Isolate 里拼超大字符串 OOM
+export async function streamDatabaseSql(
+  db: D1Database,
+  emit: (chunk: string) => Promise<void> | void,
+  now = new Date(),
+): Promise<{ tables: number; rows: number }> {
   const schema = await db
     .prepare(
       `SELECT type, name, tbl_name, sql FROM sqlite_master
@@ -54,26 +91,56 @@ export async function dumpDatabase(db: D1Database, now = new Date()): Promise<Du
     .all<SchemaRow>()
   const tables = schema.results.filter((row) => row.type === 'table')
   const dataTables = tables.filter((table) => !SCHEMA_ONLY.has(table.name))
-  const results = dataTables.length ? await db.batch(dataTables.map((table) => db.prepare(`SELECT * FROM ${ident(table.name)}`))) : []
 
-  const lines = [`-- D1 backup ${now.toISOString()}`, 'PRAGMA defer_foreign_keys = true;']
-  for (const table of tables) lines.push(`${table.sql};`)
-  let rows = 0
-  dataTables.forEach((table, i) => {
-    for (const row of (results[i]?.results ?? []) as Array<Record<string, SqlValue>>) {
-      const columns = Object.keys(row)
-      lines.push(`INSERT INTO ${ident(table.name)} (${columns.map(ident).join(', ')}) VALUES (${columns.map((c) => sqlLiteral(row[c])).join(', ')});`)
-      rows++
+  const header = [`-- D1 backup ${now.toISOString()}`, 'PRAGMA defer_foreign_keys = true;', ...tables.map((t) => `${t.sql};`)]
+  await emit(`${header.join('\n')}\n`)
+
+  let totalRows = 0
+  for (const table of dataTables) {
+    let cursor = { useRowId: true, lastRowId: -1, offset: 0 }
+    for (;;) {
+      const page = await queryTablePage(db, table.name, cursor)
+      if (!page.rows.length) break
+      cursor = page.nextCursor
+
+      let batch: string[] = []
+      let batchChars = 0
+      let batchColumns: string[] | null = null
+      const flush = async () => {
+        if (!batch.length || !batchColumns) return
+        const prefix = `INSERT INTO ${ident(table.name)} (${batchColumns.map(ident).join(', ')}) VALUES\n`
+        await emit(`${prefix}${batch.join(',\n')};\n`)
+        batch = []
+        batchChars = 0
+      }
+
+      for (const row of page.rows) {
+        const columns = Object.keys(row)
+        const tuple = `(${columns.map((c) => sqlLiteral(row[c])).join(', ')})`
+        if (batchColumns && (batch.length >= INSERT_BATCH_ROWS || batchChars + tuple.length > INSERT_MAX_CHARS || columns.length !== batchColumns.length)) {
+          await flush()
+        }
+        batchColumns = columns
+        batch.push(tuple)
+        batchChars += tuple.length + 2
+        totalRows++
+      }
+      await flush()
+      if (page.rows.length < PAGE_SIZE) break
     }
-  })
-  // 索引、触发器、视图在数据之后建，导入更快
-  for (const row of schema.results) if (row.type !== 'table') lines.push(`${row.sql};`)
-  return { sql: `${lines.join('\n')}\n`, tables: tables.length, rows }
+  }
+
+  const tail = schema.results.filter((row) => row.type !== 'table').map((row) => `${row.sql};`)
+  if (tail.length) await emit(`${tail.join('\n')}\n`)
+  return { tables: tables.length, rows: totalRows }
 }
 
-async function gzip(text: string) {
-  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))
-  return new Uint8Array(await new Response(stream).arrayBuffer())
+export async function dumpDatabase(db: D1Database, now = new Date()): Promise<DumpResult> {
+  const chunks: string[] = []
+  const stats = await streamDatabaseSql(db, (chunk) => {
+    chunks.push(chunk)
+  }, now)
+  return { sql: chunks.join(''), tables: stats.tables, rows: stats.rows }
 }
 
 const dayOf = (now: Date) => now.toISOString().slice(0, 10)
@@ -87,15 +154,89 @@ export interface BackupSummary {
   deleted: string[]
 }
 
-// 立即导出一次（覆盖当天已有的备份），并删除超过保留期的旧备份
-export async function backupDatabase(env: Env, now = new Date()): Promise<BackupSummary> {
-  const dump = await dumpDatabase(env.DB, now)
-  const body = await gzip(dump.sql)
+function concatBytes(chunks: Uint8Array[], total: number): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(new ArrayBuffer(total))
+  let offset = 0
+  for (const c of chunks) {
+    out.set(c, offset)
+    offset += c.byteLength
+  }
+  return out
+}
+
+// 立即导出一次（覆盖当天已有的备份）：分页 SQL 流 → gzip 压缩流 → 达 5 MB 切入 R2 Multipart 分片，小库单次 put
+export async function backupDatabase(env: Env, now = new Date(), multipartPartBytes = BACKUP_MULTIPART_BYTES): Promise<BackupSummary> {
   const key = backupKey(dayOf(now))
-  await env.MEDIA.put(key, body, {
-    httpMetadata: { contentType: 'application/gzip' },
-    customMetadata: { tables: String(dump.tables), rows: String(dump.rows), createdAt: now.toISOString() },
-  })
+  const httpMetadata = { contentType: 'application/gzip' }
+  const { readable, writable } = new TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>()
+  const compressedStream = (readable as ReadableStream<BufferSource>).pipeThrough(new CompressionStream('gzip'))
+  const writer = writable.getWriter()
+  const encoder = new TextEncoder()
+
+  let stats = { tables: 0, rows: 0 }
+  const producer = (async () => {
+    try {
+      stats = await streamDatabaseSql(
+        env.DB,
+        async (chunk) => {
+          if (chunk.length) await writer.write(new Uint8Array(encoder.encode(chunk)))
+        },
+        now,
+      )
+      await writer.close()
+    } catch (error) {
+      await writer.abort(error).catch(() => {})
+      throw error
+    }
+  })()
+
+  const reader = compressedStream.getReader()
+  let pending: Uint8Array[] = []
+  let pendingBytes = 0
+  let totalBytes = 0
+  const mp: { upload: R2MultipartUpload | null; parts: R2UploadedPart[]; partNumber: number } = {
+    upload: null,
+    parts: [],
+    partNumber: 1,
+  }
+  const customMetadata = () => ({ tables: String(stats.tables), rows: String(stats.rows), createdAt: now.toISOString() })
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value.byteLength) continue
+      totalBytes += value.byteLength
+      pending.push(value)
+      pendingBytes += value.byteLength
+      while (pendingBytes > multipartPartBytes) {
+        const combined = concatBytes(pending, pendingBytes)
+        const part = combined.slice(0, multipartPartBytes)
+        const tail = combined.slice(multipartPartBytes)
+        pending = tail.byteLength ? [tail] : []
+        pendingBytes = tail.byteLength
+        if (!mp.upload) {
+          mp.upload = await env.MEDIA.createMultipartUpload(key, {
+            httpMetadata,
+            customMetadata: { createdAt: now.toISOString() },
+          })
+        }
+        mp.parts.push(await mp.upload.uploadPart(mp.partNumber++, part))
+      }
+    }
+    await producer
+    const remaining = concatBytes(pending, pendingBytes)
+    if (mp.upload) {
+      if (remaining.byteLength > 0) mp.parts.push(await mp.upload.uploadPart(mp.partNumber++, remaining))
+      await mp.upload.complete(mp.parts)
+    } else {
+      await env.MEDIA.put(key, remaining, { httpMetadata, customMetadata: customMetadata() })
+    }
+  } catch (error) {
+    if (mp.upload) await mp.upload.abort().catch(() => {})
+    throw error
+  }
+
   const cutoff = backupKey(dayOf(new Date(now.getTime() - BACKUP_RETENTION_DAYS * 86400_000)))
   const deleted: string[] = []
   let cursor: string | undefined
@@ -106,7 +247,7 @@ export async function backupDatabase(env: Env, now = new Date()): Promise<Backup
     cursor = page.truncated ? page.cursor : undefined
   } while (cursor)
   if (deleted.length) await env.MEDIA.delete(deleted)
-  return { key, tables: dump.tables, rows: dump.rows, bytes: body.byteLength, deleted }
+  return { key, tables: stats.tables, rows: stats.rows, bytes: totalBytes, deleted }
 }
 
 // Cron 入口：当天已有备份就跳过；失败记日志并按天给管理员发一次告警

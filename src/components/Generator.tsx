@@ -253,7 +253,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
             className="btn-ghost hidden px-3 py-1.5 text-xs md:inline-flex"
             data-testid="phone-upload-open"
           >
-            <Smartphone className="size-4" /> {g.phoneOpen}
+            <Smartphone className="size-4" /> <span>{g.phoneOpen}</span>
           </button>
         )}
       </section>
@@ -312,8 +312,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
                 className={`rounded-lg px-2 py-2 text-center transition ${active ? 'bg-card shadow-sm ring-1 ring-line' : 'text-muted hover:text-fg'}`}
               >
                 <span className="block text-sm font-semibold">
-                  {g.seconds(d.seconds)}
-                  {'isFull' in d && d.isFull ? ` · ${g.full}` : ''}
+                  {`${g.seconds(d.seconds)}${'isFull' in d && d.isFull ? ` · ${g.full}` : ''}`}
                 </span>
                 <span className="block text-xs text-muted">{g.creditsLabel(d.credits)}</span>
               </button>
@@ -341,7 +340,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
           </div>
         ) : !user ? (
           <a href={signInHref(config, pathname, lp('/sign-in'))} className="btn-primary w-full py-3.5" data-testid="generator-sign-up">
-            <GoogleIcon /> {g.ctaSignUp}
+            <GoogleIcon /> <span>{g.ctaSignUp}</span>
           </a>
         ) : shortfall > 0 && coverPack ? (
           <>
@@ -353,13 +352,13 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
               data-testid="generator-buy"
             >
               {checkout.paused ? (
-                c.pricing.paused
+                <span>{c.pricing.paused}</span>
               ) : checkout.pending === coverPack.id ? (
                 <>
-                  <Spinner /> {c.pricing.buying}
+                  <Spinner /> <span>{c.pricing.buying}</span>
                 </>
               ) : (
-                g.ctaBuyPack(coverPack.credits, formatPrice(coverPack.priceCents, coverPack.currency))
+                <span>{g.ctaBuyPack(coverPack.credits, formatPrice(coverPack.priceCents, coverPack.currency))}</span>
               )}
             </button>
             <p className="text-center text-xs">
@@ -382,7 +381,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
             data-testid="generate"
           >
             {submitting ? <Spinner /> : null}
-            {g.ctaGenerate(duration.credits)}
+            <span>{g.ctaGenerate(duration.credits)}</span>
           </button>
         )}
         {!loading && !user && photo ? (
@@ -397,8 +396,7 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
         ) : null}
         {user ? (
           <p className="text-center text-xs text-muted" data-testid="generator-balance">
-            {g.balance(user.credits)}
-            {shortfall > 0 ? ` · ${g.needMore(shortfall)}` : ''}
+            {`${g.balance(user.credits)}${shortfall > 0 ? ` · ${g.needMore(shortfall)}` : ''}`}
           </p>
         ) : null}
         {user && photosReady && !consent && !generation ? <p className="text-center text-xs text-muted">{g.needConsent}</p> : null}
@@ -471,7 +469,7 @@ function PhotoDrop({
             <span className="space-y-1">
               <span className="flex items-center gap-1.5 text-sm font-semibold">
                 {uploading ? <Spinner /> : <CircleCheck className="size-4 text-emerald-600" />}
-                {uploading ? g.uploading : g.uploaded}
+                <span>{uploading ? g.uploading : g.uploaded}</span>
               </span>
               <span className="block text-xs text-muted underline">{g.change}</span>
             </span>
@@ -494,7 +492,7 @@ function StepTitle({ n, children }: { n: number; children: string }) {
   return (
     <h3 className="flex items-center gap-2 text-sm font-semibold">
       <span className="grid size-5 place-items-center rounded-full bg-ink text-[11px] text-ink-fg">{n}</span>
-      {children}
+      <span>{children}</span>
     </h3>
   )
 }
@@ -507,24 +505,23 @@ function GenerationResult({ generation, onReset }: { generation: Generation; onR
       {isActiveGeneration(generation) ? (
         <p className="flex items-start gap-2 text-sm">
           <Spinner className="mt-0.5 size-4 shrink-0" />
-          {generation.status === 'queued' ? g.queued : g.processing}
+          <span>{generation.status === 'queued' ? g.queued : g.processing}</span>
         </p>
       ) : generation.status === 'succeeded' && generation.videoUrl ? (
         <>
           <p className="flex items-center gap-2 text-sm font-semibold">
-            <CircleCheck className="size-4 text-emerald-600" /> {g.succeeded}
+            <CircleCheck className="size-4 text-emerald-600" /> <span>{g.succeeded}</span>
           </p>
           <div className="relative mx-auto w-fit">
             <AiBadge />
             <video src={generation.videoUrl} controls playsInline className="max-h-[420px] rounded-lg bg-black" data-testid="generation-video" />
           </div>
           <p className="text-xs text-muted" data-testid="ai-notice">
-            {g.aiNotice}
-            {generation.expiresAt ? ` ${g.expiresOn(formatDate(generation.expiresAt, locale))}` : null}
+            {`${g.aiNotice}${generation.expiresAt ? ` ${g.expiresOn(formatDate(generation.expiresAt, locale))}` : ''}`}
           </p>
           <div className="flex flex-wrap gap-2">
             <a href={`${generation.videoUrl}?download=1`} className="btn-primary px-4 py-2" download>
-              <Download className="size-4" /> {g.download}
+              <Download className="size-4" /> <span>{g.download}</span>
             </a>
             <LocalLink to="/dashboard" className="btn-ghost px-4 py-2">
               {g.viewAll}
@@ -537,7 +534,7 @@ function GenerationResult({ generation, onReset }: { generation: Generation; onR
       ) : (
         <div className="space-y-2 text-sm">
           <p className="flex items-center gap-2 font-semibold text-red-600 dark:text-red-400">
-            <CircleAlert className="size-4" /> {g.failed}
+            <CircleAlert className="size-4" /> <span>{g.failed}</span>
           </p>
           {generation.refunded ? <p className="text-muted">{g.refunded}</p> : null}
           <button type="button" className="btn-ghost px-4 py-2" onClick={onReset}>

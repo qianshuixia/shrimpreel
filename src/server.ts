@@ -1,10 +1,12 @@
 import handler from '@tanstack/react-start/server-entry'
+import { site } from './config/site'
 import { regionalConsentDefault } from './lib/consent'
 import { runHealthCheck } from './server/alerts'
 import { app } from './server/app'
 import { runDailyBackup } from './server/backup'
-import { PERMISSIONS_POLICY, contentSecurityPolicy, createNonce } from './server/csp'
+import { PERMISSIONS_POLICY, contentSecurityPolicy, createNonce, cspHeaderName } from './server/csp'
 import { handleDeadLetterBatch, handleQueueBatch, runScheduledMaintenance } from './server/jobs'
+import { handleDemoVideoRequest } from './server/media'
 import { runNotificationCron } from './server/notifications'
 import { isSeoPath } from './server/seo'
 import { SHARE_PAGE, loadShare, shareHttpStatus } from './server/shares'
@@ -31,6 +33,11 @@ export default {
     // Umami 同域代理（/s/script.js、/s/api/send）：不走页面和 API 逻辑
     const umami = handleUmamiProxy(request, env)
     if (umami) return withSecurityHeaders(await umami, env, url)
+    // Demo 演示视频（/demo/*.mp4）：优先从 R2 或 env.ASSETS 切片输出 206 Partial Content，保证 Safari 起播
+    if (pathname.startsWith('/demo/') && pathname.endsWith('.mp4') && (request.method === 'GET' || request.method === 'HEAD')) {
+      const demo = await handleDemoVideoRequest(request, env, pathname)
+      if (demo) return withSecurityHeaders(demo, env, url)
+    }
     const toHono = pathname.startsWith('/api/') || pathname.startsWith('/media/') || pathname.startsWith('/i/') || isSeoPath(pathname)
     // 页面统一无尾斜杠：/pricing/ → 301 /pricing（TanStack 默认 307，不传递权重）
     if (!toHono && pathname.length > 1 && pathname.endsWith('/') && (request.method === 'GET' || request.method === 'HEAD')) {
@@ -94,9 +101,9 @@ function withSecurityHeaders(response: Response, env: Env, url: URL, nonce?: str
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     if (!headers.has(key)) headers.set(key, value)
   }
-  // CSP 只对页面下发（Report-Only 阶段，见 server/csp.ts）；API、媒体和 sitemap 不是 HTML，不需要
+  // CSP 只对页面下发（Report-Only / 强制切换见 site.cspReportOnly 与 server/csp.ts）；API、媒体和 sitemap 不是 HTML，不需要
   if (nonce && headers.get('Content-Type')?.startsWith('text/html')) {
-    headers.set('Content-Security-Policy-Report-Only', contentSecurityPolicy(nonce))
+    headers.set(cspHeaderName(site.cspReportOnly), contentSecurityPolicy(nonce))
   }
   // HSTS 只在正式站和 staging 的 https 下发（workers.dev 所在的 .dev 顶级域本就在 HSTS 预加载列表里）；本地开发不加
   if (isProduction(env) && url.protocol === 'https:' && !headers.has('Strict-Transport-Security')) {

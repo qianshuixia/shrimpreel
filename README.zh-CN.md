@@ -155,7 +155,7 @@ npx wrangler r2 object put <name>-media/templates/<file>.m4a --file seed/templat
 - 同时配好 R2 生命周期规则，见下文“合规与内容安全”。
 - 发信域名要在 Email Service 完成 Onboard，见下文“交易邮件”。
 - 部署前体检：`npm run doctor`，`npm run deploy` 会先跑它，有错误就停下。
-  - 检查 `APP_ENV`、`SITE_URL` 与 `site.domain` 是否一致、是否误用 mock、所选支付/视频/审核服务商需要的密钥、`*_PRODUCTS` 是否覆盖全部积分包、绑定和资源 id 是否还是占位值、Cron 与死信队列、站点文件里没填完的 `TODO(site)`，以及远端 D1 是否还有未应用的 migration。
+  - 检查 `APP_ENV`、`SITE_URL` 与 `site.domain` 是否一致、是否误用 mock、所选支付/视频/审核服务商需要的密钥、`*_PRODUCTS` 是否覆盖全部积分包、绑定和资源 id 是否还是占位值、Cron 与死信队列、站点文件里没填完的 `TODO(site)`、工作区未提交改动（`production` 下直接报错，本地调试可加 `--allow-dirty` 跳过），以及远端 D1 是否还有未应用的 migration。
   - 密钥只用 `wrangler secret list` 核对名字，不读取值。需要已登录 wrangler；首次部署时 Worker 还不存在，先写密钥（`wrangler secret put` 或 `sync-secrets --apply --overwrite`，都会创建 Worker）。`--offline` 跳过所有远端查询，`-c wrangler.staging.jsonc` 检查预发配置。
   - 后台概览的“上线配置检查”卡片按运行时 env 跑同一套规则（规则在 `src/server/config-health.ts`），还会检查 `SESSION_SECRET` 强度；只显示问题，不显示任何值。
 - 部署：`npm run deploy`。在 Cloudflare 控制台给 Worker 绑定自定义域名，`SITE_URL` 和 `site.domain` 要与之一致（canonical、sitemap 和 CSRF 同源校验都依赖它）。
@@ -264,7 +264,7 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
   - 账单页有订阅卡片：下次续费日、到期取消与撤销、扣款失败提示、支付商客户门户。Waffo 只能在客户门户里撤销取消，门户需要 `WAFFO_STORE_ID`。
   - 退款只回收这张订单发过的订阅积分，之后不再补发年付积分；退款不会取消订阅。不支持换套餐、试用期和暂停。规则和 Dodo、Waffo 的差异见 [docs/payments.md](docs/payments.md) 的“订阅”。
   - test 模式实测（webhook 模式）：Waffo 月付首付、订阅激活、当月积分、客户门户、取消续费全部通过；Dodo 首付、激活、积分和门户地址通过，取消续费和撤销要等 API 密钥补上 Subscriptions 写入后再验证。续费和扣款失败 test 模式触发不了，由单元测试和 mock e2e 覆盖。Waffo 付款事件不带周期且周期只到日期，状态事件到达后会校正周期，当期积分的到期时间跟着对齐。
-- **争议与拒付**：Stripe 的 `charge.dispute.*` 和 Dodo 的 `dispute.*` 事件和付款一样经 `processPaymentEvent` 落库。争议开启时回收这张订单剩余的积分（幂等键 `dispute:<争议号>`）并邮件通知管理员；胜诉或争议撤销时补回；败诉时订单记为已退款，不二次回收。Stripe 欺诈预警（early fraud warning）默认只通知管理员，由管理员在后台核对后退款；把 `site.fraudWarningAutoRefund` 设为 `true` 才会经支付商自动退掉订单剩余金额。后台订单显示争议状态。Waffo 没有争议 webhook，要手动记账。细节见 [docs/payments.md](docs/payments.md) 的“争议与拒付”。
+- **争议与拒付**：Stripe 的 `charge.dispute.*` 和 Dodo 的 `dispute.*` 事件和付款一样经 `processPaymentEvent` 落库。争议开启时回收这张订单剩余的积分（幂等键 `dispute:<争议号>`）并邮件通知管理员；胜诉或争议撤销时补回；败诉时订单记为已退款，不二次回收。Stripe 欺诈预警（early fraud warning）由 `site.fraudWarningAutoRefund` 控制，**默认开启**：收到可处理预警时同步停掉账户上活跃订阅的期末续费（并尽力向支付商取消），经 Stripe 全额退掉剩余金额后立即在本地回收剩余积分；设为 `false` 时只通知管理员由人工审核后退款。后台订单显示争议状态。Waffo 没有争议 webhook，要手动记账。细节见 [docs/payments.md](docs/payments.md) 的“争议与拒付”。
 - **支付事件**：`payment_events (provider, event_id)` 唯一。重放、并发重试、退款后迟到的 paid 都只生效一次。退款按 `MIN(余额, 包内积分)` 回收，流水记录实际扣除量。
   - paid 事件入账前和订单核对：商品要一致（Dodo 商品 ID、Stripe Price ID、Waffo `productMetadata.packageId`），同币种时含税实收不得低于标价；币种不同（Dodo Adaptive Currency）或用了折扣码时不核对金额。不一致的不入账，记为 `mismatch`；找不到订单的 paid 事件记为 `orphan`（`metadata.site` 标明是共用商户号的其他站点的事件直接忽略）。两者都返回 200，并触发“付款待核对”告警：核实后在后台补单，或到支付商后台退款（退款回调到达后订单结案为已退款，不动积分）。
   - 退款事件先于付款事件到达（付款回调还在重试）时记为失败并返回 5xx，等付款入账后由支付商重试。
@@ -291,12 +291,12 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
   - 利益披露：本 README 里的 yir 链接是作者的推荐链接。按 yir 条款，被推荐账号注册后 6 个月内的消费，作者能拿到 yir 毛利的一部分。不想走推荐链接可以直接访问 [yir.ai](https://yir.ai)。fal 的链接不带推荐。
   - [NanoAPI](https://nanoapi.ai)（`VIDEO_PROVIDER=nanoapi`，secret `NANOAPI_API_KEY`，配置在 `site.video.nanoapi`，代码在 `src/server/video/nanoapi.ts`）用 `genjutsu-1.0` 模型处理照片 + 模板源视频。`mode: 'motion_control'` 让照片里的人做源视频的动作；`'replace_object'` 把源视频里的对象换成照片里的，`prompt` 要写清换哪个。计费秒数是源视频时长（motion_control 四舍五入且至少 4 秒，replace_object 向上取整）乘以对应分辨率的单价（480p $0.117/s、720p $0.273/s、1080p $0.78/s，见[价格](https://nanoapi.ai/docs/genjutsu)）。2026-10-25 用真实 key 实测，480p，源视频 6 秒，每段出片要 4～7 分钟。`motion_control` 保留源视频的场景、动作和照片里的人脸，但衣服也是照片里的；`replace_object` 保留源视频的服装和场景，但人脸会往原舞者的样子靠。要让用户换上戏服，先用图片模型给照片换装，再跑 `motion_control`，模板的 NanoAPI 接入没有做这一步。`replace_object` 把 6.04 秒的视频按 7 秒计费，所以源视频要剪成整秒。
   - NanoAPI 会自己下载照片和源视频：用浏览器 User-Agent，读视频时发 Range 请求。源视频读不了时任务以 `internal_error` 失败（全额退款），不会报 `invalid_media`。实测里，不支持 Range 的服务器和不带扩展名的签名地址都出现过这种情况。模板的 `/media/*` 路由支持 Range，地址以 `.mp4` 结尾。不要在 `/media/*` 前面加人机验证，包括 Bot Fight Mode、Under Attack 模式和 WAF 质询。本地测试不要用 Pinggy 免费隧道，它会给浏览器返回一个提示页。
-  - NanoAPI 创建任务没有幂等键，队列重投或 Worker 中断后重新提交会重复扣费。所以创建前先列出最近 3 小时的任务，照片地址和源视频地址都对得上就直接沿用那个任务（照片签名地址按任务创建时间生成，同一任务每次相同，不同任务一定不同）。列表请求失败时提交也失败（可重试的错误会重投），不会在查不了的情况下盲目创建。
+  - NanoAPI 创建任务没有幂等键，为了在队列重投或 Worker 中断重试时不重复扣费，仅在重试提交（`attempts > 0`）时先列出最近 3 小时的任务，照片地址和源视频地址都对得上就直接沿用那个任务（照片签名地址按任务创建时间生成，同一任务每次相同，不同任务一定不同）；首次提交直接创建。重试时列表请求失败则提交一并失败（可重试错误会重投），不在查不了的情况下盲目创建。
   - 没配密钥、密钥失效、余额用完或账户被停用时，任务失败并退积分，同时立即触发“视频服务商账户”告警。NanoAPI 的 Key 没有月度额度，余额要自己在 NanoAPI 控制台盯着。结果每 30 秒轮询一次（文档要求间隔不少于 15 秒）。
 - **安全**：非 GET 的 `/api/*`（webhook、CSP 报告和前端错误上报除外）要求 `Origin` 与站点同源；上传按文件头校验真实类型；上传和生成按用户限流；封禁用户会立即使会话失效；管理操作写入 `admin_audit`。
   - 登录后的 `redirect`（登录页和 Google 回调）只接受站内路径：`src/lib/redirect.ts` 拒绝反斜杠、控制字符，以及规范化后以 `//` 开头的地址，所以 `/sign-in?redirect=/\evil.com` 这类链接会落到个人中心。
   - 5xx 错误只对管理员返回 `message`；其他人只拿到错误码，详情以 `[api] <method> <path> <code>: <message>` 写入 Workers Logs。
-  - Google 登录：授权码流程带 PKCE（S256）和 nonce；One Tap 初始化前先从 `/api/auth/google/nonce` 取 nonce（同时写进 cookie），提交时两者必须一致。
+  - Google 登录：授权码流程带 PKCE（S256）和 nonce；未登录首屏请求 `/api/me` 时会直接随会话返回 `oneTapNonce` 并写入 cookie（`/api/auth/google/nonce` 保留作退出登录后等场景的回退），提交时两者必须一致。
   - 账号以 Google 的 `sub` 为准：同一邮箱换了 Google 账号（`sub` 不同）会被拒绝登录，登录页提示联系客服（`account_conflict`）；dev 登录建的账号（没有 `sub`）在第一次 Google 登录时绑定。
   - 注销账号只保留邮箱的加盐哈希（`deleted_accounts` 表，盐是 `SESSION_SECRET`），同一邮箱重新注册时不发注册赠送、不绑定邀请人。更换 `SESSION_SECRET` 后旧记录对不上。
   - 上传请求必须带 `Content-Length`（否则 411），超过上限直接 413，不读请求体。服务商成片超过 100 MB 判失败并退积分；带长度时流式写入 R2，没带长度时边读边计数，超过 48 MB 即停止。
@@ -305,10 +305,10 @@ SMOKE_BASE_URL=https://video-template-staging.<子域名>.workers.dev SMOKE_EXPE
   - 支付结果页带 `order` 以外的参数（Dodo 回跳会附带买家邮箱）时，Worker 先 302 去掉再渲染，邮箱不会进入页面、统计、错误上报和浏览器历史；第一次请求的 URL 仍会出现在 Workers 日志里。
   - 举报表单不需要登录：回执只发给已登录、且填的是本人账号邮箱的举报人，防止表单被用来给任意地址发信；举报编号在提交后的页面上显示，处理结果仍发到填写的邮箱。
   - 报告安全漏洞见 [SECURITY.md](SECURITY.md)。
-- **CSP**：页面响应带 `Content-Security-Policy-Report-Only`，策略在 `src/server/csp.ts`。
+- **CSP**：页面响应默认由 `site.cspReportOnly` 控制为 `Content-Security-Policy-Report-Only`，策略在 `src/server/csp.ts`（含 `media-src 'self' blob:`）。
   - 每次请求生成 nonce（`src/server.ts` → `src/router.tsx` 的 `ssr.nonce`），框架输出的内联脚本都会带上它，`script-src` 不放开 `'unsafe-inline'`。自定义内联脚本放进 `__root.tsx` 的 `headScripts()`，不要直接写 `<script>`。
   - 已按官方文档放行 GA4、Cloudflare Web Analytics、Turnstile、Google 登录；接入新的第三方脚本、iframe 或接口时要在 `csp.ts` 里补来源。
-  - 违规报告发到 `/api/csp-report`，只写 Workers 日志 `[csp] <指令> blocked=… page=…`（URL 去掉 query，按 IP 限流）。上线观察一段时间没有误报后，把 `server.ts` 里的头名改成 `Content-Security-Policy` 即可强制执行。
+  - 违规报告发到 `/api/csp-report`，只写 Workers 日志 `[csp] <指令> blocked=… page=…`（URL 去掉 query，按 IP 限流）。上线观察一段时间没有误报后，把 `src/config/site.ts` 的 `cspReportOnly` 设为 `false` 即可强制执行 `Content-Security-Policy`。
   - 所有响应都带 `Permissions-Policy`，关闭摄像头、麦克风、定位、支付和 USB。
 
 ## 合规与内容安全

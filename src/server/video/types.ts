@@ -11,6 +11,8 @@ export interface VideoSubmitInput {
   sourceVideoKey: string
   webhookUrl: string
   meta: Record<string, unknown>
+  // 是否为队列重试提交：首次为 false（可跳过列表去重直接创建），重试为 true（需先查重避免重复扣费）
+  isRetry?: boolean
 }
 
 export interface VideoSubmitResult {

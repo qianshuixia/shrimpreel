@@ -164,11 +164,17 @@ export function registerReferralAdminRoutes(routes: Hono<AppContext>) {
     const [leaders, recent, totals] = await db.batch([
       db
         .prepare(
-          `SELECT r.inviter_id AS userId, u.email, u.referral_code AS code, COUNT(*) AS invited,
-           SUM(r.status = 'rewarded') AS rewarded, SUM(r.status = 'reversed') AS reversed, SUM(r.status = 'rejected') AS rejected,
-           COALESCE(SUM(CASE WHEN r.status = 'rewarded' THEN r.reward_credits ELSE 0 END), 0) AS credits, MAX(r.created_at) AS lastAt
-           FROM referrals r JOIN users u ON u.id = r.inviter_id WHERE r.created_at >= ?
-           GROUP BY r.inviter_id ORDER BY rewarded DESC, invited DESC, lastAt DESC LIMIT 50`,
+          `SELECT agg.inviter_id AS userId, u.email, u.referral_code AS code,
+           agg.invited, agg.rewarded, agg.reversed, agg.rejected, agg.credits, agg.lastAt
+           FROM (
+             SELECT inviter_id, COUNT(*) AS invited,
+               SUM(status = 'rewarded') AS rewarded, SUM(status = 'reversed') AS reversed, SUM(status = 'rejected') AS rejected,
+               COALESCE(SUM(CASE WHEN status = 'rewarded' THEN reward_credits ELSE 0 END), 0) AS credits, MAX(created_at) AS lastAt
+             FROM referrals WHERE created_at >= ?
+             GROUP BY inviter_id ORDER BY rewarded DESC, invited DESC, lastAt DESC LIMIT 50
+           ) agg
+           JOIN users u ON u.id = agg.inviter_id
+           ORDER BY agg.rewarded DESC, agg.invited DESC, agg.lastAt DESC`,
         )
         .bind(since),
       db

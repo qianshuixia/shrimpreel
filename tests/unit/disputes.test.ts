@@ -5,12 +5,16 @@ import { ledgerStatements } from '#/server/credits'
 import { processPaymentEvent } from '#/server/orders'
 import { normalizeDodoEvent } from '#/server/payments/dodo'
 import { expandStripeEvent, normalizeStripeEvent } from '#/server/payments/stripe'
-import type { DisputeEvent, DisputeStage, PaymentEvent, RefundRequest } from '#/server/payments/types'
+import type { DisputeEvent, DisputeStage, PaymentEvent, RefundRequest, SubscriptionRef } from '#/server/payments/types'
 import type { OrderRow } from '#/server/types'
 import { d1Shim, kvShim, migrate } from './d1-sqlite'
 
 const notified = vi.hoisted(() => ({ disputes: [] as Array<Record<string, unknown>> }))
-const refunds = vi.hoisted(() => ({ calls: [] as unknown[], fail: null as null | { status: number; message: string } }))
+const refunds = vi.hoisted(() => ({
+  calls: [] as unknown[],
+  cancellations: [] as SubscriptionRef[],
+  fail: null as null | { status: number; message: string },
+}))
 vi.mock('#/server/notifications', () => ({
   notifyOrderPaid: async () => {},
   notifyDispute: async (_env: unknown, input: Record<string, unknown>) => {
@@ -28,6 +32,9 @@ vi.mock('#/server/payments', async () => {
               refunds.calls.push(input)
               if (refunds.fail) throw new ApiError(refunds.fail.status, 'payment_provider_conflict', refunds.fail.message)
               return { refundId: 're_1', status: 'pending' }
+            },
+            async cancelSubscription(sub: SubscriptionRef) {
+              refunds.cancellations.push(sub)
             },
           }
         : null,
@@ -114,6 +121,7 @@ describe('争议入账', () => {
   beforeEach(() => {
     notified.disputes.length = 0
     refunds.calls.length = 0
+    refunds.cancellations.length = 0
     refunds.fail = null
     sqlite = new DatabaseSync(':memory:')
     sqlite.exec('PRAGMA foreign_keys = ON')
@@ -281,49 +289,122 @@ describe('争议入账', () => {
     expect(sqlite.prepare(`SELECT status FROM payment_events WHERE event_id = 'e1'`).get()).toEqual({ status: 'failed' })
   })
 
-  it('欺诈预警（开关默认关闭）：不退款、订单与余额不变，只通知管理员并写明未自动退款', async () => {
-    const id = await paidOrder()
-    const warning: Extract<PaymentEvent, { kind: 'fraud_warning' }> = { kind: 'fraud_warning', eventId: 'w0', eventType: 'mock.fraud_warning', orderId: id, providerPaymentId: `pay_${id}` }
-    const result = await process(warning)
-    expect(result).toMatchObject({ status: 'processed' })
-    expect(result.note).toContain('未自动退款')
-    expect(refunds.calls).toHaveLength(0)
-    expect(order(id)).toMatchObject({ status: 'paid', refunded_amount_cents: 0 })
-    expect(balance()).toBe(100)
-    expect(notified.disputes.at(-1)).toMatchObject({ stage: 'fraud_warning', detail: result.note })
+  it('欺诈预警（手动关闭 fraudWarningAutoRefund 时）：不退款、订单与余额不变，只通知管理员并写明未自动退款', async () => {
+    const autoRefund = site as { fraudWarningAutoRefund: boolean }
+    const prev = autoRefund.fraudWarningAutoRefund
+    autoRefund.fraudWarningAutoRefund = false
+    try {
+      const id = await paidOrder()
+      const warning: Extract<PaymentEvent, { kind: 'fraud_warning' }> = { kind: 'fraud_warning', eventId: 'w0', eventType: 'mock.fraud_warning', orderId: id, providerPaymentId: `pay_${id}` }
+      const result = await process(warning)
+      expect(result).toMatchObject({ status: 'processed' })
+      expect(result.note).toContain('未自动退款')
+      expect(refunds.calls).toHaveLength(0)
+      expect(order(id)).toMatchObject({ status: 'paid', refunded_amount_cents: 0 })
+      expect(balance()).toBe(100)
+      expect(notified.disputes.at(-1)).toMatchObject({ stage: 'fraud_warning', detail: result.note })
+    } finally {
+      autoRefund.fraudWarningAutoRefund = prev
+    }
   })
 
-  describe('fraudWarningAutoRefund 开启', () => {
+  describe('fraudWarningAutoRefund 开启（默认）', () => {
     const autoRefund = site as { fraudWarningAutoRefund: boolean }
+    let prev = true
     beforeEach(() => {
+      prev = autoRefund.fraudWarningAutoRefund
       autoRefund.fraudWarningAutoRefund = true
     })
     afterEach(() => {
-      autoRefund.fraudWarningAutoRefund = false
+      autoRefund.fraudWarningAutoRefund = prev
     })
 
-    it('欺诈预警：对剩余金额提交全额退款，积分等退款回调；已有争议、退款被拒时只告警', async () => {
+    it('欺诈预警：自动全额退款并立即回收剩余积分（后续退款回调幂等去重）；已有争议或退款被拒时仅告警', async () => {
       const id = await paidOrder()
-      const warning = (eventId: string): Extract<PaymentEvent, { kind: 'fraud_warning' }> => ({ kind: 'fraud_warning', eventId, eventType: 'mock.fraud_warning', orderId: id, providerPaymentId: `pay_${id}` })
+      const warning = (eventId: string, orderId = id): Extract<PaymentEvent, { kind: 'fraud_warning' }> => ({
+        kind: 'fraud_warning',
+        eventId,
+        eventType: 'mock.fraud_warning',
+        orderId,
+        providerPaymentId: `pay_${orderId}`,
+      })
       expect(await process(warning('w1'))).toMatchObject({ status: 'processed' })
       expect(refunds.calls).toEqual([expect.objectContaining({ orderId: id, amountCents: 1000, fullAmount: true, providerPaymentId: `pay_${id}` })])
-      expect(balance()).toBe(100)
+      expect(balance()).toBe(0)
+      expect(order(id)).toMatchObject({ status: 'refunded', refunded_amount_cents: 1000, refunded_credits: 100 })
       expect(notified.disputes.at(-1)).toMatchObject({ stage: 'fraud_warning' })
 
-      refunds.fail = { status: 409, message: 'Stripe refund: charge_already_refunded' }
-      const second = await process(warning('w2'))
-      expect(second).toMatchObject({ status: 'processed' })
-      expect(second.note).toContain('自动退款失败')
+      // 迟到的退款 webhook 凭相同 refundId 幂等去重，不二次扣分
+      const delayedRefund = await process({
+        kind: 'refunded',
+        eventId: 'rf_late',
+        eventType: 'mock.refunded',
+        orderId: id,
+        providerPaymentId: `pay_${id}`,
+        refundId: 're_1',
+        refundAmountCents: null,
+        originalAmountCents: null,
+      })
+      expect(delayedRefund).toMatchObject({ status: 'duplicate', orderId: id })
+      expect(balance()).toBe(0)
 
-      await process(dispute(id, 'opened', 'e1'))
+      // 409 冲突（使用尚未退款的新订单）
+      const id409 = await paidOrder()
+      refunds.fail = { status: 409, message: 'Stripe refund: charge_already_refunded' }
+      const conflict = await process(warning('w2', id409))
+      expect(conflict).toMatchObject({ status: 'processed' })
+      expect(conflict.note).toContain('自动退款失败')
+      expect(balance()).toBe(100)
+
+      // 已有争议（使用未退款且开了争议的新订单）
+      refunds.fail = null
+      const idDisputed = await paidOrder()
+      await process(dispute(idDisputed, 'opened', 'e1'))
       refunds.calls.length = 0
-      expect(await process(warning('w3'))).toMatchObject({ status: 'ignored', note: 'dispute already open' })
+      expect(await process(warning('w3', idDisputed))).toMatchObject({ status: 'ignored', note: 'dispute already open' })
       expect(refunds.calls).toHaveLength(0)
 
       // 网络类错误抛出，让支付商重试 webhook
       const other = await paidOrder()
       refunds.fail = { status: 502, message: 'boom' }
-      await expect(process({ ...warning('w4'), orderId: other, providerPaymentId: `pay_${other}` })).rejects.toThrow('boom')
+      await expect(process(warning('w4', other))).rejects.toThrow('boom')
+    })
+
+    it('欺诈预警命中订阅订单时同步取消活跃订阅并立即回收剩余积分', async () => {
+      const id = `ord_${++seq}`
+      const now = new Date().toISOString()
+      const end = new Date(Date.now() + 30 * 86400_000).toISOString()
+      sqlite
+        .prepare(
+          `INSERT INTO orders (id, user_id, provider, package_id, credits, amount_cents, currency, status, created_at, updated_at)
+           VALUES (?, 'u1', 'mock', 'yearly', 100, 9900, 'USD', 'pending', ?, ?)`,
+        )
+        .run(id, now, now)
+      await process({
+        kind: 'paid',
+        eventId: `evt_paid_${id}`,
+        eventType: 'mock.paid',
+        orderId: id,
+        providerOrderId: 'sub_efw_1',
+        providerPaymentId: `pay_${id}`,
+        paidAmount: '99.00',
+        paidCurrency: 'USD',
+        paidAmountCents: 9900,
+        subscription: { providerSubscriptionId: 'sub_efw_1', providerCustomerId: 'cus_efw', periodStart: now, periodEnd: end },
+      })
+      const subId = (sqlite.prepare('SELECT subscription_id FROM orders WHERE id = ?').get(id) as { subscription_id: string }).subscription_id
+      expect(balance()).toBe(100)
+
+      await process({ kind: 'fraud_warning', eventId: 'w_sub', eventType: 'mock.fraud_warning', orderId: id, providerPaymentId: `pay_${id}` })
+      expect(refunds.cancellations).toEqual([
+        { providerSubscriptionId: 'sub_efw_1', providerCustomerId: 'cus_efw', user: { id: 'u1', email: 'u1@example.com' } },
+      ])
+      expect(sqlite.prepare('SELECT cancel_at_period_end, next_grant_at FROM subscriptions WHERE id = ?').get(subId)).toEqual({
+        cancel_at_period_end: 1,
+        next_grant_at: null,
+      })
+      expect(balance()).toBe(0)
+      expect(order(id)).toMatchObject({ status: 'refunded', refunded_credits: 100 })
     })
   })
 })

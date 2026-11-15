@@ -106,4 +106,34 @@ describe('jobs：双人生成带两张照片', () => {
     expect(submit).not.toHaveBeenCalled()
     expect(sqlite.prepare('SELECT status, error_code FROM generations WHERE id = ?').get('gen_1')).toEqual({ status: 'failed', error_code: 'invalid_input' })
   })
+
+  it('completed 出片含 XMP 标记时单次 put 写盘（不再先写再 Range 回读覆盖）', async () => {
+    const { site } = await import('../../src/config/site')
+    const aiMeta = site.aiMetadata as { enabled: boolean }
+    const prevXmp = aiMeta.enabled
+    aiMeta.enabled = true
+    try {
+      const mp4Stub = new Uint8Array([0, 0, 0, 12, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d])
+      const put = vi.fn(async () => ({}))
+      const bucket = {
+        get: vi.fn(async (key: string) =>
+          key === 'mock/gen_1.mp4'
+            ? { size: mp4Stub.byteLength, body: new ReadableStream(), arrayBuffer: async () => mp4Stub.buffer }
+            : null,
+        ),
+        put,
+        delete: vi.fn(),
+      }
+      status.mockResolvedValueOnce({ state: 'completed', output: { r2Key: 'mock/gen_1.mp4' }, costCents: 12 })
+      const fullEnv = { ...siteEnv(), OUTPUT_MODERATION: 'off', MEDIA: bucket } as unknown as Env
+      await handleVideoJob(fullEnv, { kind: 'poll', generationId: 'gen_1' })
+      expect(put).toHaveBeenCalledTimes(1)
+      expect(row()).toMatchObject({ status: 'succeeded' })
+      const written = (put.mock.calls[0] as unknown as [string, Uint8Array])[1]
+      expect(written.byteLength).toBeGreaterThan(mp4Stub.byteLength)
+      expect(new TextDecoder().decode(written)).toContain('gen_1')
+    } finally {
+      aiMeta.enabled = prevXmp
+    }
+  })
 })

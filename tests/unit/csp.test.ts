@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { summarizeCspReports } from '#/server/csp'
+import { contentSecurityPolicy, cspHeaderName, summarizeCspReports } from '#/server/csp'
+
+describe('contentSecurityPolicy', () => {
+  it('包含 media-src self blob 且响应头随 cspReportOnly 切换', () => {
+    const policy = contentSecurityPolicy('nonce-123')
+    expect(policy).toContain("media-src 'self' blob:")
+    expect(policy).toContain("'nonce-nonce-123'")
+    expect(cspHeaderName(true)).toBe('Content-Security-Policy-Report-Only')
+    expect(cspHeaderName(false)).toBe('Content-Security-Policy')
+  })
+})
 
 describe('summarizeCspReports', () => {
   it('report-uri 格式：URL 去掉 query 和 hash（不把买家邮箱写进日志），inline 等关键字原样保留', () => {

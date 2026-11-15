@@ -65,6 +65,7 @@ export async function exchangeGoogleCode(
       grant_type: 'authorization_code',
       code_verifier: pkce.verifier,
     }),
+    signal: AbortSignal.timeout(15_000),
   })
   if (!response.ok) throw new ApiError(502, 'google_token_exchange_failed')
   const body = (await response.json()) as { id_token?: string }
@@ -110,7 +111,7 @@ function decodeJson<T>(part: string): T {
 }
 
 async function verifySignature(signingInput: string, signature: string, kid: string) {
-  const response = await fetch(GOOGLE_JWKS_URL, { cf: { cacheTtl: 3600, cacheEverything: true } })
+  const response = await fetch(GOOGLE_JWKS_URL, { signal: AbortSignal.timeout(15_000), cf: { cacheTtl: 3600, cacheEverything: true } })
   if (!response.ok) throw new ApiError(502, 'google_jwks_unavailable')
   const jwks = (await response.json()) as { keys?: GoogleJwk[] }
   const jwk = jwks.keys?.find((key) => key.kid === kid)

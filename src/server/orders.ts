@@ -5,7 +5,7 @@ import { getOrderProvider } from './payments'
 import { referralClawbackStatements, referralRewardStatements } from './referrals'
 import { getSettings } from './settings'
 import { addInterval, grantWindow, nextGrantAt } from './subscriptions'
-import type { DisputeEvent, PaidEvent, PaymentEvent, PaymentProviderId, SubscriptionCharge, SubscriptionEvent } from './payments/types'
+import type { DisputeEvent, PaidEvent, PaymentEvent, PaymentProvider, PaymentProviderId, SubscriptionCharge, SubscriptionEvent } from './payments/types'
 import type { OrderRow, SubscriptionRow } from './types'
 import { ApiError, createId, isCheckConstraintError, isUniqueConstraintError, nowIso, parseJsonRecord, sha256Hex } from './util'
 
@@ -302,14 +302,37 @@ async function disputeCredits(db: D1Database, disputeId: string) {
 }
 
 // 发卡行欺诈预警：还没有拒付，主动全额退剩余金额可以避免拒付（并且不计入拒付率）。
-// 仅在 site.fraudWarningAutoRefund 开启时自动退款，关闭时只通知管理员。
-// 只提交退款，积分等之后的退款 webhook 回收（同后台退款）；退不了（已退、已拒付、超出期限、没有 API）时只告警
+async function tryCancelProviderSubscription(
+  db: D1Database,
+  provider: PaymentProvider | null,
+  userId: string,
+  ref: { providerSubscriptionId: string; providerCustomerId: string | null },
+  context: string,
+) {
+  if (!provider?.cancelSubscription) return
+  try {
+    const user = await db.prepare('SELECT email FROM users WHERE id = ?').bind(userId).first<{ email: string }>()
+    await provider.cancelSubscription({
+      providerSubscriptionId: ref.providerSubscriptionId,
+      providerCustomerId: ref.providerCustomerId,
+      user: { id: userId, email: user?.email ?? '' },
+    })
+  } catch (error) {
+    console.warn(context, {
+      userId,
+      providerSubscriptionId: ref.providerSubscriptionId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+// 默认开启自动全额退款并立即回收剩余积分，避免欺诈用户继续消费或后续升级成拒付；关闭时仅通知管理员。
+// 若关联活跃订阅则同步取消并停发后续分期积分；退不了（已退、已拒付、超出期限、没有 API）时告警
 async function applyFraudWarning(env: Env, order: OrderRow): Promise<FulfillmentResult> {
   if (order.status !== 'paid') return { status: 'ignored', orderId: order.id, note: `order is ${order.status}` }
   if (order.dispute_status === 'open') return { status: 'ignored', orderId: order.id, note: 'dispute already open' }
   const remaining = Math.max(0, (order.paid_amount_cents ?? order.amount_cents) - order.refunded_amount_cents)
   if (remaining <= 0) return { status: 'ignored', orderId: order.id, note: 'nothing left to refund' }
-  // 站点开关关闭（默认）：不动钱，只在通知里提示管理员到后台核对后退款
   if (!site.fraudWarningAutoRefund) return { status: 'processed', orderId: order.id, note: '未自动退款，请到后台核对后退款' }
   const provider = getOrderProvider(env, order.provider)
   if (!provider?.refund) return { status: 'processed', orderId: order.id, note: '该支付商没有退款 API，请到支付商后台手动退款' }
@@ -325,10 +348,32 @@ async function applyFraudWarning(env: Env, order: OrderRow): Promise<Fulfillment
       currency: order.paid_currency ?? order.currency,
       reason: 'early fraud warning',
     })
+    if (order.subscription_id) {
+      const sub = await env.DB.prepare('SELECT * FROM subscriptions WHERE id = ?').bind(order.subscription_id).first<SubscriptionRow>()
+      if (sub && sub.status !== 'canceled' && sub.status !== 'expired') {
+        const now = nowIso()
+        await env.DB
+          .prepare('UPDATE subscriptions SET cancel_at_period_end = 1, next_grant_at = NULL, state_at = ?, updated_at = ? WHERE id = ?')
+          .bind(now, now, sub.id)
+          .run()
+        await tryCancelProviderSubscription(
+          env.DB,
+          provider,
+          order.user_id,
+          { providerSubscriptionId: sub.provider_subscription_id, providerCustomerId: sub.provider_customer_id },
+          'cancel subscription after fraud warning failed',
+        )
+      }
+    }
+    await refundOrder(env.DB, order, {
+      refundKey: result.refundId ?? `efw:${order.id}`,
+      amountCents: remaining,
+      note: 'early fraud warning',
+    })
     return {
       status: 'processed',
       orderId: order.id,
-      note: `已自动提交全额退款${result.refundId ? ` ${result.refundId}` : ''}（${result.status}），积分在退款回调到达后回收`,
+      note: `已自动提交全额退款${result.refundId ? ` ${result.refundId}` : ''}（${result.status}）并立即回收剩余积分`,
     }
   } catch (error) {
     // 业务冲突不重试（重试也一样），原因写进告警；其他错误（网络、支付商 5xx）抛出，让支付商重试 webhook
@@ -436,6 +481,14 @@ async function applySubscriptionStart(
   const subscriptionId = createId('sub')
   const referral = await referralRewardStatements(db, order, (await getSettings(env)).referralRewardCredits, now)
   const statements = [
+    // 终止 webhook 丢失时，先将已到期结束的取消态旧订阅置为 expired，避免 idx_subscriptions_one_live 阻塞正常重订
+    db
+      .prepare(
+        `UPDATE subscriptions
+         SET status = 'expired', ended_at = COALESCE(ended_at, current_period_end), next_grant_at = NULL, updated_at = ?
+         WHERE user_id = ? AND status IN ('active', 'past_due') AND cancel_at_period_end = 1 AND current_period_end IS NOT NULL AND current_period_end <= ?`,
+      )
+      .bind(now, order.user_id, now),
     ...ledgerStatements(db, {
       userId: order.user_id,
       delta: order.credits,
@@ -490,8 +543,42 @@ async function applySubscriptionStart(
   try {
     await batchWithOptional(db, statements, referral)
   } catch (error) {
-    if (isUniqueConstraintError(error)) return { status: 'duplicate', orderId: order.id }
-    throw error
+    if (!isUniqueConstraintError(error)) throw error
+    // 区分幂等重放（同单已入账或同 provider_subscription_id 已入库）与同用户并发双开冲突（idx_subscriptions_one_live）
+    const freshOrder = await db.prepare('SELECT status FROM orders WHERE id = ?').bind(order.id).first<{ status: string }>()
+    const existingSub = await findSubscription(db, provider, charge.providerSubscriptionId)
+    if (existingSub || freshOrder?.status === 'paid' || freshOrder?.status === 'refunded') {
+      return { status: 'duplicate', orderId: order.id }
+    }
+    await markMismatch(db, order.id, event, now)
+    const providerClient = getOrderProvider(env, provider)
+    await tryCancelProviderSubscription(
+      db,
+      providerClient,
+      order.user_id,
+      { providerSubscriptionId: charge.providerSubscriptionId, providerCustomerId: charge.providerCustomerId ?? null },
+      'cancel duplicate subscription failed',
+    )
+    if (providerClient?.refund && event.providerPaymentId) {
+      try {
+        await providerClient.refund({
+          orderId: order.id,
+          packageId: order.package_id,
+          providerPaymentId: event.providerPaymentId,
+          amountCents: event.paidAmountCents ?? order.amount_cents,
+          fullAmount: true,
+          currency: event.paidCurrency ?? order.currency,
+          reason: 'duplicate live subscription',
+        })
+      } catch (refundError) {
+        console.warn('refund duplicate subscription failed', {
+          orderId: order.id,
+          providerPaymentId: event.providerPaymentId,
+          error: refundError instanceof Error ? refundError.message : String(refundError),
+        })
+      }
+    }
+    return { status: 'mismatch', orderId: order.id, note: 'duplicate live subscription for user' }
   }
   return { status: 'processed', orderId: order.id }
 }
@@ -786,9 +873,15 @@ async function findOrder(db: D1Database, provider: PaymentProviderId, event: Exc
     if (order) return order
   }
   if (event.kind === 'paid' && event.providerOrderId) {
+    // 拆成两条等价分支并用 UNION ALL 合并：分别命中 (provider, provider_session_id) 与 (provider, provider_order_id) 部分索引，避免 OR 回退全扫描
     return db
-      .prepare('SELECT * FROM orders WHERE provider = ? AND (provider_session_id = ? OR provider_order_id = ?)')
-      .bind(provider, event.providerOrderId, event.providerOrderId)
+      .prepare(
+        `SELECT * FROM orders WHERE provider = ? AND provider_session_id = ?
+         UNION ALL
+         SELECT * FROM orders WHERE provider = ? AND provider_order_id = ? AND COALESCE(provider_session_id, '') != ?
+         LIMIT 1`,
+      )
+      .bind(provider, event.providerOrderId, provider, event.providerOrderId, event.providerOrderId)
       .first<OrderRow>()
   }
   return null

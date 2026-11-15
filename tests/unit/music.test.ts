@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ALL_FORMATS, BufferSource, Input } from 'mediabunny'
-import { addStyleMusic } from '#/server/music'
+import { addStyleMusic, MAX_MUX_VIDEO_BYTES, muxStyleMusicBytes } from '#/server/music'
 
 const video = new Uint8Array(readFileSync('tests/fixtures/video-6s.mp4'))
 const music = new Uint8Array(readFileSync('tests/fixtures/music-6s.m4a'))
@@ -84,5 +84,20 @@ describe('addStyleMusic', () => {
     expect(await addStyleMusic(r2.bucket, 'outputs/u/g.mp4', 'music-6s.m4a', 'g')).toBe('skipped')
     expect(warn).toHaveBeenCalled()
     expect(r2.store.get('outputs/u/g.mp4')!.data).toBe(junk)
+  })
+
+  it('超过 MAX_MUX_VIDEO_BYTES（20 MB）：只检查头信息即跳过，不把超限视频读入混流', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r2 = fakeBucket({ 'outputs/u/g.mp4': video, 'templates/music-6s.m4a': music })
+    r2.bucket.head = (async () => ({ size: MAX_MUX_VIDEO_BYTES + 1, etag: 'e1' })) as unknown as typeof r2.bucket.head
+    const getSpy = vi.spyOn(r2.bucket, 'get')
+    expect(await addStyleMusic(r2.bucket, 'outputs/u/g.mp4', 'music-6s.m4a', 'g')).toBe('skipped')
+    expect(getSpy).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('output music skipped', { generationId: 'g', reason: 'too_large' })
+
+    const bigBytes = new Uint8Array(MAX_MUX_VIDEO_BYTES + 1)
+    const direct = await muxStyleMusicBytes(r2.bucket, bigBytes, 'music-6s.m4a', 'g2')
+    expect(direct.result).toBe('skipped')
+    expect(direct.bytes === bigBytes).toBe(true)
   })
 })

@@ -307,4 +307,33 @@ describe('订阅入账', () => {
     expect(await grantDueSubscriptions(env, { now: Date.parse(addMonths(start, 2)) + 1000 })).toEqual({ checked: 1, granted: 0 })
     expect(sub().next_grant_at).toBeNull()
   })
+
+  it('到期取消且当期已结束（终止 webhook 丢失）：新订时自动把旧订阅置为 expired 再入账', async () => {
+    const oldOrder = addOrder('monthly', monthly.priceCents, monthly.credits)
+    const pastStart = iso(-35 * DAY)
+    const pastEnd = iso(-5 * DAY)
+    await process(charge(oldOrder, 'pay_old', monthly.priceCents, { providerSubscriptionId: 'msub_old', periodStart: pastStart, periodEnd: pastEnd }))
+    sqlite.exec(`UPDATE subscriptions SET cancel_at_period_end = 1 WHERE provider_subscription_id = 'msub_old'`)
+
+    const nextOrder = addOrder('monthly', monthly.priceCents, monthly.credits)
+    const result = await process(
+      charge(nextOrder, 'pay_new', monthly.priceCents, { providerSubscriptionId: 'msub_new', periodStart: iso(), periodEnd: iso(30 * DAY) }),
+    )
+    expect(result).toEqual({ status: 'processed', orderId: nextOrder })
+    expect(sqlite.prepare(`SELECT status FROM subscriptions WHERE provider_subscription_id = 'msub_old'`).get()).toEqual({ status: 'expired' })
+    expect(sqlite.prepare(`SELECT status FROM subscriptions WHERE provider_subscription_id = 'msub_new'`).get()).toEqual({ status: 'active' })
+    expect(credits()).toBe(monthly.credits * 2)
+  })
+
+  it('并发双开同一用户第二笔活跃订阅命中唯一约束：返回 mismatch、保留交易号且不重复发积分', async () => {
+    await startMonthly()
+    const second = addOrder('monthly', monthly.priceCents, monthly.credits)
+    const dup = await process(
+      charge(second, 'pay_concurrent', monthly.priceCents, { providerSubscriptionId: 'msub_2', periodStart: iso(), periodEnd: iso(30 * DAY) }),
+    )
+    expect(dup).toEqual({ status: 'mismatch', orderId: second, note: 'duplicate live subscription for user' })
+    expect(order(second)).toMatchObject({ status: 'pending', provider_payment_id: 'pay_concurrent', provider_order_id: 'msub_2' })
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM subscriptions WHERE user_id = 'u1' AND status IN ('active', 'past_due')`).get()).toEqual({ n: 1 })
+    expect(credits()).toBe(monthly.credits)
+  })
 })

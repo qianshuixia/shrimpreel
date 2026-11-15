@@ -59,6 +59,11 @@ async function proxyScript(origin: string): Promise<Response> {
 }
 
 async function proxySend(request: Request, origin: string, env: Env): Promise<Response> {
+  const ip = request.headers.get('CF-Connecting-IP')
+  if (env.PUBLIC_LIMITER) {
+    const { success } = await env.PUBLIC_LIMITER.limit({ key: `umami:${ip ?? 'local'}` })
+    if (!success) return text('Too many requests', 429)
+  }
   const raw = await request.text()
   if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) return text('Payload too large', 413)
   let body: unknown
@@ -77,7 +82,6 @@ async function proxySend(request: Request, origin: string, env: Env): Promise<Re
   // Umami 看到 payload.ip 会用它查国家、计算访客；不写则会用 Worker 的出口 IP。本地开发没有这个头。
   // 带 payload.ip 时 Umami 跳过请求头里的地区信息、改查 GeoLite2 库，实例没有库会返回 500（Vercel 上要设 BUILD_GEO=1）。
   // 不能改用 CF-IPCountry 请求头：Worker 发往非 Cloudflare 源站时它会被删掉，Vercel 的 x-vercel-ip-country 又只反映 Worker 出口
-  const ip = request.headers.get('CF-Connecting-IP')
   if (ip) payload.ip = ip
   // 请求头白名单：绝不能转发 Cookie、Authorization（站点登录态不能发给第三方）
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }

@@ -161,6 +161,7 @@ async function signedPost<T>(
         : { 'X-Idempotency-Key': await sha256Hex(`${merchantId}:${path}:${bodyText}:${Math.floor(Number(timestamp) / 60)}`) }),
     },
     body: bodyText,
+    signal: AbortSignal.timeout(20_000),
   })
   let envelope: { data?: unknown; errors?: Array<{ message?: string }> }
   try {

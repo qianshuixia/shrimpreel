@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { activePaymentProviderId } from '#/server/payments'
 import { defaultStyle } from '#/config/site'
 import { createFalProvider } from '#/server/video/fal'
@@ -42,6 +42,31 @@ describe('videoProviderIdForStyle', () => {
   it('mock 压过一切（本地和 e2e 里双人风格也能跑通）；生产环境配成 mock 仍然报错', () => {
     expect(videoProviderIdForStyle(env({ APP_ENV: 'development', VIDEO_PROVIDER: 'mock' }), style('nanoapi'))).toBe('mock')
     expect(() => videoProviderIdForStyle(env({ APP_ENV: 'production', VIDEO_PROVIDER: 'mock' }), style('nanoapi'))).toThrow(/VIDEO_PROVIDER/)
+  })
+})
+
+describe('fal 幂等键与异常终态处理', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('fal 提交携带 Idempotency-Key，避免队列重试重复提交计费', async () => {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = []
+    vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
+      calls.push({ url: String(url), headers: init?.headers as Record<string, string> })
+      return Response.json({ request_id: 'req_1', status_url: 'https://queue.fal.run/s', response_url: 'https://queue.fal.run/r' })
+    })
+    const provider = createFalProvider({ FAL_KEY: 'k' } as unknown as Env)
+    const input = { generationId: 'gen_idem_1', style: defaultStyle, durationSeconds: 6, imageUrls: ['https://a/1'], sourceVideoUrl: 'https://a/v', sourceVideoKey: 'k', webhookUrl: 'https://a/w', meta: {} }
+    await provider.submit(input)
+    expect(calls[0]!.headers['Idempotency-Key']).toBe('gen_idem_1')
+  })
+
+  it('fal 状态返回 FAILED 等非 COMPLETED 终态时不再假判为 pending 空轮询', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ status: 'FAILED' }))
+    const provider = createFalProvider({ FAL_KEY: 'k' } as unknown as Env)
+    await expect(provider.status('req_1', { statusUrl: 'https://queue.fal.run/s', responseUrl: 'https://queue.fal.run/r' })).rejects.toMatchObject({
+      code: 'fal_unexpected_status',
+      retryable: false,
+    })
   })
 })
 

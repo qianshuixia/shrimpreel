@@ -74,7 +74,7 @@ test 模式实测（2026-10-21，webhook 模式）：Waffo 月付首付、订阅
 | `won` | 胜诉 | 补回 `dispute_credits`（幂等键 `dispute_won:<争议号>`，订阅订单沿用原批次的到期时间，已过期不补），`refunded_credits` 同步减回，`dispute_status='won'` |
 | `closed` | 争议未成立就关闭、资金留在商户（Stripe `warning_closed`、`prevented`，Dodo `cancelled`） | 同 `won`。判断依据：资金没有被扣走，积分没有理由继续扣着 |
 | `lost` | 败诉（Dodo 的 `accepted`、`expired` 也算） | `dispute_status='lost'`，订单记为 `refunded`、退款金额补满实收；积分在 `opened` 时已回收，不二次回收；邀请奖励照退款规则回收 |
-| `fraud_warning` | Stripe 欺诈预警（`actionable=true`） | 站点开关 `fraudWarningAutoRefund` 默认关闭：只通知管理员（写明“未自动退款”），由管理员在后台核对后退款。开启后，订单还有可退金额且没有进行中的争议时，调用该支付商的 `refund()` 全额退剩余（先过 `assertProviderRefundAllowed`），积分等之后的退款 webhook 回收，和后台退款一样；退款被拒（409）只在通知里写原因，网络类错误抛出让支付商重试。始终通知管理员 |
+| `fraud_warning` | Stripe 欺诈预警（`actionable=true`） | 站点开关 `fraudWarningAutoRefund` 默认开启：若有活跃订阅，先取消期末续费并尽力调用支付商取消订阅；订单还有可退金额且没有进行中的争议时，调用该支付商的 `refund()` 全额退剩余（先过 `assertProviderRefundAllowed`），退款成功后立即在本地执行 `refundOrder` 回收剩余积分，不等后续退款 webhook；设为 `false` 时只通知管理员（写明“未自动退款”），由管理员在后台核对后退款；退款被拒（409）只在通知里写原因，网络类错误抛出让支付商重试。始终通知管理员 |
 
 边界：
 

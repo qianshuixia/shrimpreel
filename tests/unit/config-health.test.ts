@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { REQUIRED_BINDINGS, checkConfig, type ConfigInput } from '#/server/config-health'
 import { sellingPlans, site } from '#/config/site'
-import { configBindings, findSiteTodos, parsePendingMigrations, parseSecretNames, readWranglerConfig, runDoctor } from '../../scripts/doctor.mjs'
+import { configBindings, findDirtyFiles, findSiteTodos, parsePendingMigrations, parseSecretNames, readWranglerConfig, runDoctor } from '../../scripts/doctor.mjs'
 
 const SECRET = 'a'.repeat(64)
 
@@ -247,5 +248,29 @@ describe('doctor', () => {
     expect(doctorKeys(deployable(), { siteTodos: todos })).toEqual(['error:site-todo'])
     const staging = { ...deployable(), vars: { ...deployable().vars, APP_ENV: 'staging' } }
     expect(doctorKeys(staging, { siteTodos: todos })).toContain('warn:site-todo')
+  })
+
+  it('未提交改动：production 报错阻断，非 production 与 git 不可用时提醒；findDirtyFiles 识别脏树', () => {
+    expect(doctorKeys(deployable(), { dirtyFiles: [' M src/server/app.ts'] })).toEqual(['error:dirty-worktree'])
+    const staging = { ...deployable(), vars: { ...deployable().vars, APP_ENV: 'staging' } }
+    expect(doctorKeys(staging, { dirtyFiles: [' M src/server/app.ts'] })).toContain('warn:dirty-worktree')
+    expect(doctorKeys(deployable(), { dirtyFiles: null })).toEqual(['warn:dirty-worktree'])
+
+    const nonGit = mkdtempSync(join(tmpdir(), 'doctor-nongit-'))
+    const repo = mkdtempSync(join(tmpdir(), 'doctor-git-'))
+    try {
+      expect(findDirtyFiles(nonGit)).toBeNull()
+      execFileSync('git', ['init'], { cwd: repo })
+      execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo })
+      execFileSync('git', ['config', 'user.name', 'Test'], { cwd: repo })
+      writeFileSync(join(repo, 'a.txt'), 'v1\n')
+      expect(findDirtyFiles(repo)).toEqual(['?? a.txt'])
+      execFileSync('git', ['add', 'a.txt'], { cwd: repo })
+      execFileSync('git', ['commit', '-m', 'init'], { cwd: repo })
+      expect(findDirtyFiles(repo)).toEqual([])
+    } finally {
+      rmSync(nonGit, { recursive: true, force: true })
+      rmSync(repo, { recursive: true, force: true })
+    }
   })
 })

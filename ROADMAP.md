@@ -41,7 +41,7 @@
 - 同意横幅改为按地区（2026-10-31）：欧洲经济区、英国、瑞士和无法判断国家的访客默认关闭统计 Cookie 并弹横幅，其他地区默认开启、不弹横幅，页脚可拒绝。依据：竞品（JibJab、Elf Yourself、Kling、CapCut 等）对美国访客都不弹横幅；之前全球弹横幅时，不点横幅的大部分访客不进 GA，漏斗看不全。单元测试覆盖国家判断和默认值，本地带 `cf-ipcountry` 实测，工件在 `.tmp/geo-consent/`。
 - 先体验后登录和手机扫码传图（2026-10-31，本地完成）：生成器草稿（照片、风格、时长）存 IndexedDB，跨登录和付款保留，访客看到草稿保留提示和最低价；桌面端扫码用手机选图，经 R2 `handoff/` 中转。没改用户表、积分和支付，完整的免登录购买等 Clarity/GA 漏斗数据再定。单元测试和 4 个 e2e 用例覆盖，工件在 `.tmp/guest-draft-handoff/`；真机扫码和真实 R2 条件写未验证。
 - 可选的 Microsoft Clarity 录屏已完成（2026-10-31）：`analytics.clarityId`，只在正式域名加载、`/admin` 不录；未同意时无 Cookie 模式，同意横幅的选择同步给 Clarity（`consentv2`）；隐私政策和横幅文案按配置调整，CSP 放行，单元测试覆盖。用于排查“打开收银台不付款”。
-- CSP 与 Permissions-Policy 已在本地完成：页面下发 `Content-Security-Policy-Report-Only`，内联脚本用每次请求的 nonce，违规写 `[csp]` 日志。dev 与生产构建下公开页、生成流程、后台、GA4 同意后加载均为零违规。**仍是 Report-Only**，上线观察无误报后再改为强制执行。说明见 README 的“关键设计”。
+- CSP 与 Permissions-Policy 已在本地完成：默认按 `site.cspReportOnly` 下发 `Content-Security-Policy-Report-Only`（策略含 `media-src 'self' blob:`），内联脚本用每次请求的 nonce，违规写 `[csp]` 日志。dev 与生产构建下公开页、生成流程、后台、GA4 同意后加载均为零违规。**仍是 Report-Only**，上线观察无误报后将 `site.cspReportOnly` 设为 `false` 即可强制执行。说明见 README 的“关键设计”。
 - 开源前安全排查（2026-10-20）已在本地完成，报告在 `.tmp/security-audit/report.md`（只在作者本机，不入库）：
   - 已修复：
     - 登录后 `redirect` 的开放重定向，包括 `/\evil`、`/..//evil` 等写法；

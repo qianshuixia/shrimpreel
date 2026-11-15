@@ -63,7 +63,8 @@
 - `analytics.ga4Id`、`analytics.cfBeaconToken`、`analytics.umamiWebsiteId`、`analytics.clarityId`：统计。`umamiWebsiteId` 配合 `UMAMI_ORIGIN` 使用，同域代理、不写 Cookie、不受横幅控制。`clarityId` 是 Microsoft Clarity 项目 ID，只在正式域名加载，未同意时无 Cookie 录制。填了 `ga4Id` 或 `clarityId` 才启用 Cookie 同意：欧洲经济区、英国、瑞士和无法判断国家的访客默认关闭并弹横幅，其他地区默认开启、可在页脚“Cookie 设置”里拒绝（按 `cf-ipcountry` 判断，见 `src/lib/consent.ts`）；归因 Cookie `vt_attr` 跟随同一个同意状态。
 - `share.enabled`：成片公开分享页，默认开启。换脸、真人类站点风险高时设为 `false`，个人中心的分享按钮和 `/v/<id>` 页面都不出现。
 - `aiMetadata.enabled`：成片 XMP 机器可读 AI 标记和 `/verify` 验证页，默认关闭。开启后成片写入 XMP、页脚和 sitemap 出现 `/verify`、服务条款提到元数据；关闭时页面和 `GET /api/verify/:id` 返回 404。面向欧盟用户的站点建议开启。
-- `fraudWarningAutoRefund`：Stripe 欺诈预警（actionable）时是否自动全额退款，默认关闭；关闭时只通知管理员，由管理员在后台退款。
+- `fraudWarningAutoRefund`：Stripe 欺诈预警（actionable）时是否自动全额退款并立即回收剩余积分（同时取消关联活跃订阅），默认开启；设为 `false` 时只通知管理员，由管理员在后台退款。
+- `cspReportOnly`：CSP 响应头是否仅上报（`Content-Security-Policy-Report-Only`），默认开启；线上观察 `[csp]` 日志无误报后设为 `false` 即强制执行 `Content-Security-Policy`。
 - `seo.googleVerification`、`seo.bingVerification`、`seo.indexNowKey`：站长验证和 IndexNow。用 `new-site.mjs` 派生新站时会被清空。
 
 ## 仅脚本和测试使用的变量

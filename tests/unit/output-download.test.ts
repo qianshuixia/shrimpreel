@@ -78,4 +78,20 @@ describe('storeOutputFromUrl：成片下载大小上限', () => {
     serve('nope', {}, 503)
     await expect(storeOutputFromUrl(env, 'https://cdn.example/v.mp4', 'k', LIMITS)).rejects.toThrow('HTTP 503')
   })
+
+  it('只允许 https:（以及拒绝 302 降级到 http://）；合法 https 重定向可正常写入', async () => {
+    const { env, puts } = media()
+    await expect(storeOutputFromUrl(env, 'http://cdn.example/v.mp4', 'k', LIMITS)).rejects.toThrow('unsafe output url protocol')
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(null, { status: 302, headers: { location: 'http://insecure.example/v.mp4' } }),
+    )
+    await expect(storeOutputFromUrl(env, 'https://cdn.example/v.mp4', 'k', LIMITS)).rejects.toThrow('unsafe output url protocol')
+
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://edge.cdn.example/v.mp4' } }))
+      .mockResolvedValueOnce(new Response(new Uint8Array(12), { status: 200, headers: { 'content-length': '12' } }))
+    expect(await storeOutputFromUrl(env, 'https://cdn.example/v.mp4', 'k', LIMITS)).toBe(true)
+    expect(puts).toEqual([{ key: 'k', size: 12, streamed: false }])
+  })
 })

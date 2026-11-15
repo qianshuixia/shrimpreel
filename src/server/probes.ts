@@ -91,6 +91,7 @@ async function probePayment(env: Env, override: string): Promise<Outcome> {
     if (!productId) continue
     const response = await fetch(`${dodoBaseUrl(env)}/products/${encodeURIComponent(productId)}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15_000),
     })
     if (response.status === 401) return fail(`DODO_API_KEY 无效，或与 DODO_ENVIRONMENT=${env.DODO_ENVIRONMENT || 'test_mode'} 不匹配`)
     if (response.status === 404) {
@@ -132,6 +133,7 @@ async function probeStripePrices(
     if (!priceId) continue
     const response = await fetch(`https://api.stripe.com/v1/prices/${encodeURIComponent(priceId)}`, {
       headers: { Authorization: `Bearer ${apiKey}`, 'Stripe-Version': STRIPE_API_VERSION },
+      signal: AbortSignal.timeout(15_000),
     })
     if (response.status === 401) return fail('STRIPE_SECRET_KEY 无效')
     if (response.status === 403) return fail('STRIPE_SECRET_KEY 没有读取 Prices 的权限（受限 Key 需要的权限见 docs/payments.md）')
@@ -194,7 +196,10 @@ async function probeModeration(env: Env): Promise<Outcome> {
   }
   const key = cleanSecret(env.OPENAI_API_KEY)
   if (!key) return fail('OPENAI_API_KEY 未配置')
-  const response = await fetch('https://api.openai.com/v1/models/omni-moderation-latest', { headers: { Authorization: `Bearer ${key}` } })
+  const response = await fetch('https://api.openai.com/v1/models/omni-moderation-latest', {
+    headers: { Authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(15_000),
+  })
   if (response.status === 401) return fail('OPENAI_API_KEY 无效')
   if (!response.ok) return fail(`查询 omni-moderation-latest 返回 HTTP ${response.status}`)
   return ok('鉴权正常，omni-moderation-latest 可用')

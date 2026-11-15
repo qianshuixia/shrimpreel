@@ -54,8 +54,9 @@ adminRoutes.get('/stats', async (c) => {
   const db = c.env.DB
   const since7d = new Date(Date.now() - 7 * 86400_000).toISOString()
   const since30d = new Date(Date.now() - 30 * 86400_000).toISOString()
-  const [users, newUsers, revenue, revenue30d, generations, outstanding, openMessages, failedEvents, takedowns, failedEmails, cost30d, perCreditRow] = await db.batch([
-    db.prepare(`SELECT COUNT(*) AS n FROM users WHERE status != 'deleted'`),
+  const [userSummary, newUsers, revenue, revenue30d, generations, openMessages, failedEvents, takedowns, failedEmails, cost30d, perCreditRow] = await db.batch([
+    // 用状态+积分覆盖索引一次查出有效用户数与未消耗积分总额（已注销用户的积分已全部回收）
+    db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(credits), 0) AS credits FROM users WHERE status IN ('active', 'banned')`),
     db.prepare('SELECT COUNT(*) AS n FROM users WHERE created_at >= ?').bind(since7d),
     db.prepare(
       `SELECT ${NET_REVENUE} FROM orders WHERE status IN ('paid', 'refunded') GROUP BY 1`,
@@ -66,7 +67,6 @@ adminRoutes.get('/stats', async (c) => {
       )
       .bind(since30d),
     db.prepare('SELECT status, COUNT(*) AS n FROM generations GROUP BY status'),
-    db.prepare('SELECT COALESCE(SUM(credits), 0) AS n FROM users'),
     db.prepare(`SELECT COUNT(*) AS n FROM contact_messages WHERE status = 'open'`),
     // 待处理：处理失败、找不到订单，以及金额/商品不符且订单还没补单或退款的付款事件
     db.prepare(
@@ -88,14 +88,15 @@ adminRoutes.get('/stats', async (c) => {
     revenuePerCredit(db),
   ])
   const count = (result: D1Result) => Number((result.results[0] as { n?: number } | undefined)?.n ?? 0)
+  const usersRow = userSummary!.results[0] as { n?: number; credits?: number } | undefined
   const cost = cost30d!.results[0] as { videos: number; cost_cents: number; credits: number }
   return c.json({
-    users: count(users!),
+    users: Number(usersRow?.n ?? 0),
     newUsers7d: count(newUsers!),
     revenue: revenue!.results,
     revenue30d: revenue30d!.results,
     generations: generations!.results,
-    outstandingCredits: count(outstanding!),
+    outstandingCredits: Number(usersRow?.credits ?? 0),
     openMessages: count(openMessages!),
     failedPaymentEvents: count(failedEvents!),
     openTakedowns: count(takedowns!),
@@ -136,7 +137,9 @@ adminRoutes.get('/users', async (c) => {
     where.push('u.role = ?')
     params.push(role)
   }
-  if (c.req.query('paying') === '1') where.push(`${PAID_ORDERS} > 0`)
+  if (c.req.query('paying') === '1') {
+    where.push(`EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id AND o.status IN ('paid', 'refunded'))`)
+  }
   const order = USER_SORTS[c.req.query('sort') ?? ''] ?? USER_SORTS.created
   const rows = await c.env.DB.prepare(
     `SELECT u.*, ${PAID_ORDERS} AS paid_orders FROM users u
@@ -305,8 +308,8 @@ adminRoutes.get('/orders/:id', async (c) => {
       )
       .bind(id),
     db
-      .prepare('SELECT id, template, to_email, status, last_error, created_at, sent_at FROM email_outbox WHERE dedupe_key LIKE ? ORDER BY created_at')
-      .bind(`%:${id}`),
+      .prepare('SELECT id, template, to_email, status, last_error, created_at, sent_at FROM email_outbox WHERE dedupe_key = ? ORDER BY created_at')
+      .bind(`order_paid:${id}`),
   ])
   return c.json({ order, events: events!.results, ledger: ledger!.results, audit: auditRows!.results, emails: emails!.results })
 })

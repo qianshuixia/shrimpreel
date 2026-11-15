@@ -21,13 +21,13 @@ export function Pricing() {
         data-testid={`buy-${id}`}
       >
         {paused ? (
-          p.paused
+          <span>{p.paused}</span>
         ) : pending === id ? (
           <>
-            <Spinner /> {p.buying}
+            <Spinner /> <span>{p.buying}</span>
           </>
         ) : (
-          label
+          <span>{label}</span>
         )}
       </button>
     )
@@ -93,7 +93,7 @@ export function Pricing() {
               <ul className="my-6 space-y-2.5 text-sm">
                 {p.bullets.map((bullet) => (
                   <li key={bullet} className="flex items-start gap-2">
-                    <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" /> {bullet}
+                    <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" /> <span>{bullet}</span>
                   </li>
                 ))}
               </ul>
@@ -144,7 +144,7 @@ function PlanCard({ plan, button }: { plan: SubscriptionPlan; button: ReactNode 
       <ul className="my-6 space-y-2.5 text-sm">
         {p.planBullets.map((bullet) => (
           <li key={bullet} className="flex items-start gap-2">
-            <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" /> {bullet}
+            <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" /> <span>{bullet}</span>
           </li>
         ))}
       </ul>

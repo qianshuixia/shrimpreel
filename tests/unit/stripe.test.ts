@@ -276,14 +276,22 @@ const checkoutInput = (packageId: string) => ({
 describe('createStripeProvider', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('积分包用 payment 模式，订单号写进 session 和 PaymentIntent 的 metadata，带固定 API 版本和幂等键', async () => {
+  it('积分包用 payment 模式，订单号写进 session 和 PaymentIntent 的 metadata，限定银行卡、必填账单地址与 35 分钟过期', async () => {
     const calls = stubStripe(() => ({ body: { id: 'cs_1', url: 'https://checkout.stripe.com/c/pay/cs_1' } }))
+    const beforeSec = Math.floor(Date.now() / 1000)
     const result = await createStripeProvider(env()).createCheckout(checkoutInput('starter'))
     expect(result).toEqual({ url: 'https://checkout.stripe.com/c/pay/cs_1', sessionId: 'cs_1' })
     const [call] = calls
     expect(call!.url).toBe('https://api.stripe.com/v1/checkout/sessions')
     expect(call!.headers).toMatchObject({ Authorization: 'Bearer sk_test_123', 'Stripe-Version': STRIPE_API_VERSION, 'Idempotency-Key': 'checkout:ord_1' })
     expect(call!.body).toContain('mode=payment&line_items[0][price]=price_starter&line_items[0][quantity]=1')
+    expect(call!.body).toContain('payment_method_types[0]=card')
+    expect(call!.body).toContain('billing_address_collection=required')
+    const expiresMatch = call!.body.match(/(?:^|&)expires_at=(\d+)/)
+    expect(expiresMatch).not.toBeNull()
+    const expiresAt = Number(expiresMatch![1])
+    expect(expiresAt).toBeGreaterThanOrEqual(beforeSec + 34 * 60)
+    expect(expiresAt).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 36 * 60)
     expect(call!.body).toContain('client_reference_id=ord_1')
     expect(call!.body).toContain('payment_intent_data[metadata][orderId]=ord_1')
     expect(call!.body).not.toContain('subscription_data')

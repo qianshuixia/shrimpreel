@@ -52,6 +52,7 @@ export function createNanoapiProvider(env: Env): VideoProvider {
         method: body === undefined ? 'GET' : 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(25_000),
       })
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'unknown'
@@ -82,7 +83,8 @@ export function createNanoapiProvider(env: Env): VideoProvider {
   return {
     id: 'nanoapi',
     async submit(input) {
-      const existing = await findExisting(input.imageUrls, input.sourceVideoUrl)
+      // 首次提交无需扫任务列表，队列重试（或显式省略 isRetry 的直接调用）时先查重防止重复扣费
+      const existing = input.isRetry !== false ? await findExisting(input.imageUrls, input.sourceVideoUrl) : null
       if (existing) return { requestId: existing, meta: {} }
       const { model, mode, resolution } = site.video.nanoapi
       const prompt = input.style.prompt ?? site.video.nanoapi.prompt

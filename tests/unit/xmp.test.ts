@@ -9,7 +9,7 @@ import {
   scanTopLevelBoxes,
   type XmpFields,
 } from '#/lib/xmp'
-import { tagOutputWithXmp } from '#/server/xmp'
+import { appendXmpToBytes, tagOutputWithXmp } from '#/server/xmp'
 
 const fields: XmpFields = {
   generationId: 'gen_AbC123-xyz_',
@@ -190,5 +190,17 @@ describe('tagOutputWithXmp（流式追加到 R2 对象）', () => {
     expect(await tagOutputWithXmp(r2.bucket, 'k', fields, createStream)).toBe('skipped')
     expect(warn).toHaveBeenCalledWith('output xmp skipped', { generationId: fields.generationId, reason: 'changed' })
     expect(r2.bytes()).toEqual(concat(mp4(), box('free', 4)))
+  })
+
+  it('appendXmpToBytes：内存单次追加 XMP 后可被 parseXmpAiInfo 解析，重复追加返回 already_tagged', async () => {
+    const first = await appendXmpToBytes(mp4(), fields)
+    expect(first.result).toBe('tagged')
+    expect(first.bytes.byteLength).toBeGreaterThan(mp4().byteLength)
+    const packet = await readXmpFromBlob(new Blob([new Uint8Array(first.bytes)]))
+    expect(packet && parseXmpAiInfo(packet)?.generationId).toBe(fields.generationId)
+
+    const second = await appendXmpToBytes(first.bytes, fields)
+    expect(second.result).toBe('already_tagged')
+    expect(second.bytes).toBe(first.bytes)
   })
 })

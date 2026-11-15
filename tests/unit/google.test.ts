@@ -1,7 +1,10 @@
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { app } from '#/server/app'
+import { upsertUser } from '#/server/auth'
 import { exchangeGoogleCode, googleAuthRedirect, verifyGoogleIdToken } from '#/server/google'
-import { ApiError, base64Url } from '#/server/util'
+import { ApiError, base64Url, sha256Hex } from '#/server/util'
+import { d1Shim, kvShim, migrate } from './d1-sqlite'
 
 const CLIENT_ID = 'client-id'
 const config = { clientId: CLIENT_ID, clientSecret: 'client-secret', redirectUri: 'https://site.example/api/auth/google/callback' }
@@ -107,6 +110,45 @@ describe('Google 授权码流程：PKCE 与 nonce', () => {
 })
 
 describe('One Tap nonce', () => {
+  it('未登录访问 /api/me 直接下发 oneTapNonce 和 g_nonce cookie；已登录时为 null', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    migrate(sqlite)
+    const meEnv = {
+      ...env,
+      DB: d1Shim(sqlite),
+      KV: kvShim(),
+      PAYMENT_PROVIDER: 'mock',
+      ADMIN_EMAILS: '',
+      SESSION_SECRET: 'unit-test-session-secret-0123456789abcdef',
+    } as unknown as Env
+
+    const guestRes = await app.request('/api/me', {}, meEnv)
+    expect(guestRes.status).toBe(200)
+    expect(guestRes.headers.get('cache-control')).toBe('no-store')
+    const guestBody = (await guestRes.json()) as { user: unknown; oneTapNonce: string | null }
+    expect(guestBody.user).toBeNull()
+    expect(guestBody.oneTapNonce).toMatch(/^[A-Za-z0-9_-]{24}$/)
+    const guestCookie = guestRes.headers.get('set-cookie') ?? ''
+    expect(guestCookie).toContain(`g_nonce=${guestBody.oneTapNonce}`)
+    expect(guestCookie).toContain('Path=/api/auth/google')
+    expect(guestCookie).toContain('HttpOnly')
+
+    const user = await upsertUser(meEnv, { email: 'a@example.com', name: null, picture: null, googleSub: 'sub-1', country: null, locale: null })
+    const now = new Date().toISOString()
+    const sid = 'session-token-1'
+    const sidHash = await sha256Hex(sid)
+    const expires = new Date(Date.now() + 3600_000).toISOString()
+    sqlite.prepare('INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(sidHash, user.id, expires, now)
+
+    const userRes = await app.request('/api/me', { headers: { cookie: `sid=${sid}` } }, meEnv)
+    expect(userRes.status).toBe(200)
+    expect(userRes.headers.get('cache-control')).toBe('no-store')
+    const userBody = (await userRes.json()) as { user: { id: string } | null; oneTapNonce: string | null }
+    expect(userBody.user?.id).toBe(user.id)
+    expect(userBody.oneTapNonce).toBeNull()
+    expect(userRes.headers.get('set-cookie')).toBeNull()
+  })
+
   it('nonce 接口把同一个值写进只发往登录接口的 cookie，且不缓存', async () => {
     const res = await app.request('/api/auth/google/nonce', {}, env)
     const { nonce } = (await res.json()) as { nonce: string }

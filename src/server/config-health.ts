@@ -34,6 +34,7 @@ export const REQUIRED_BINDINGS = [
   'UPLOAD_LIMITER',
   'GENERATE_LIMITER',
   'AUTH_LIMITER',
+  'PUBLIC_LIMITER',
 ] as const
 
 // 可选绑定：只有用到对应功能时才需要（OUTPUT_MODERATION=frames 需要 MEDIA_TRANSFORM）

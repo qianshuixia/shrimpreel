@@ -106,7 +106,14 @@ function match(host: string, table: Array<[RegExp, string]>) {
   return table.find(([pattern]) => pattern.test(host))?.[1] ?? null
 }
 
-const lower = (value: string | undefined) => value?.toLowerCase().slice(0, 100) || null
+export function sanitizeAttributionLabel(value: string | undefined | null): string | null {
+  if (!value) return null
+  // 剥离控制字符、换行及 HTML/Markdown/群消息提及字符，防止通知与报表中伪造多行或提及注入
+  const cleaned = value.replace(/[\u0000-\u001F\u007F<>[\]`@]/g, '').trim().slice(0, 100)
+  return cleaned || null
+}
+
+const lower = (value: string | undefined) => sanitizeAttributionLabel(value)?.toLowerCase() ?? null
 
 export function classifyTouch(touch: Touch | undefined, selfHost?: string | null): SourceInfo {
   if (!touch) return { source: 'direct', medium: 'none', campaign: null }
@@ -125,7 +132,7 @@ export function classifyTouch(touch: Touch | undefined, selfHost?: string | null
   if (engine) return { source: engine, medium: 'organic', campaign }
   const social = match(host, SOCIAL)
   if (social) return { source: social, medium: 'social', campaign }
-  return { source: host.slice(0, 100), medium: 'referral', campaign }
+  return { source: sanitizeAttributionLabel(host) ?? 'direct', medium: 'referral', campaign }
 }
 
 export function deviceFromUserAgent(ua: string | undefined) {
