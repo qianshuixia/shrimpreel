@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { handleDemoVideoRequest, parseByteRange } from '#/server/media'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { handleDemoVideoRequest, parseByteRange, resetDemoAssetSizeCache } from '#/server/media'
 
 describe('parseByteRange', () => {
   it('解析 start-end、start- 与 -suffix；越界返 unsatisfiable；非 bytes 单位忽略返 null', () => {
@@ -16,6 +16,10 @@ describe('parseByteRange', () => {
 
 describe('handleDemoVideoRequest', () => {
   const bytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+  beforeEach(() => {
+    resetDemoAssetSizeCache()
+  })
 
   const makeEnv = (r2Hit = false) => {
     const cancelSpy = vi.fn(async () => {})
@@ -107,5 +111,99 @@ describe('handleDemoVideoRequest', () => {
     expect(head?.headers.get('content-range')).toBe('bytes 2-4/10')
     expect(head?.headers.get('content-length')).toBe('3')
     expect((await head!.arrayBuffer()).byteLength).toBe(0)
+  })
+
+  it('Static Assets 不返回 Content-Length（生产边缘行为）：HEAD / Range 206 / 越界 416 / 无 Range GET 均不抛锁定异常，且按 ETag 缓存长度后流式切片', async () => {
+    const cancelSpy = vi.fn(async () => {})
+    const env = {
+      MEDIA: { get: vi.fn(async () => null) },
+      ASSETS: {
+        fetch: vi.fn(async () => {
+          let readCount = 0
+          let consumed = false
+          const stream = new ReadableStream<Uint8Array>({
+            pull(c) {
+              consumed = true
+              if (readCount === 0) c.enqueue(bytes.slice(0, 5))
+              else if (readCount === 1) c.enqueue(bytes.slice(5))
+              else c.close()
+              readCount++
+            },
+            cancel: cancelSpy,
+          })
+          const originalCancel = stream.cancel.bind(stream)
+          Object.defineProperty(stream, 'cancel', {
+            value: async (reason?: unknown) => {
+              if (consumed || stream.locked) {
+                throw new TypeError('This ReadableStream is currently locked to a reader.')
+              }
+              return originalCancel(reason)
+            },
+          })
+          return new Response(stream, {
+            status: 200,
+            headers: { 'content-type': 'video/mp4', etag: '"edge-demo"' },
+          })
+        }),
+      },
+    } as unknown as Env
+
+    const coldHead = await handleDemoVideoRequest(
+      new Request('https://site.example/demo/original.mp4', { method: 'HEAD' }),
+      env,
+      '/demo/original.mp4',
+    )
+    expect(coldHead?.status).toBe(200)
+    expect(coldHead?.headers.get('content-length')).toBe('10')
+    expect((await coldHead!.arrayBuffer()).byteLength).toBe(0)
+
+    const warmPartial = await handleDemoVideoRequest(
+      new Request('https://site.example/demo/original.mp4', { headers: { range: 'bytes=0-1' } }),
+      env,
+      '/demo/original.mp4',
+    )
+    expect(warmPartial?.status).toBe(206)
+    expect(warmPartial?.headers.get('content-range')).toBe('bytes 0-1/10')
+    expect(warmPartial?.headers.get('content-length')).toBe('2')
+    expect(new Uint8Array(await warmPartial!.arrayBuffer())).toEqual(new Uint8Array([0, 1]))
+    expect(cancelSpy).toHaveBeenCalledTimes(1)
+
+    resetDemoAssetSizeCache()
+    const coldHeadRange = await handleDemoVideoRequest(
+      new Request('https://site.example/demo/original.mp4', { method: 'HEAD', headers: { range: 'bytes=2-4' } }),
+      env,
+      '/demo/original.mp4',
+    )
+    expect(coldHeadRange?.status).toBe(206)
+    expect(coldHeadRange?.headers.get('content-range')).toBe('bytes 2-4/10')
+    expect(coldHeadRange?.headers.get('content-length')).toBe('3')
+    expect((await coldHeadRange!.arrayBuffer()).byteLength).toBe(0)
+
+    resetDemoAssetSizeCache()
+    const coldBadRange = await handleDemoVideoRequest(
+      new Request('https://site.example/demo/original.mp4', { headers: { range: 'bytes=50-60' } }),
+      env,
+      '/demo/original.mp4',
+    )
+    expect(coldBadRange?.status).toBe(416)
+    expect(coldBadRange?.headers.get('content-range')).toBe('bytes */10')
+
+    resetDemoAssetSizeCache()
+    const coldGetFull = await handleDemoVideoRequest(
+      new Request('https://site.example/demo/original.mp4'),
+      env,
+      '/demo/original.mp4',
+    )
+    expect(coldGetFull?.status).toBe(200)
+    expect(new Uint8Array(await coldGetFull!.arrayBuffer())).toEqual(bytes)
+
+    const warmPartialAfterGet = await handleDemoVideoRequest(
+      new Request('https://site.example/demo/original.mp4', { headers: { range: 'bytes=0-1' } }),
+      env,
+      '/demo/original.mp4',
+    )
+    expect(warmPartialAfterGet?.status).toBe(206)
+    expect(new Uint8Array(await warmPartialAfterGet!.arrayBuffer())).toEqual(new Uint8Array([0, 1]))
+    expect(cancelSpy).toHaveBeenCalledTimes(2)
   })
 })

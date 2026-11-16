@@ -130,6 +130,69 @@ export function sliceByteStream(body: ReadableStream<Uint8Array>, start: number,
   })
 }
 
+const ASSET_SIZE_CACHE_MAX = 128
+const ASSET_SIZE_CACHE = new Map<string, number>()
+
+export function resetDemoAssetSizeCache() {
+  ASSET_SIZE_CACHE.clear()
+}
+
+function cacheAssetSize(cacheKey: string | null, total: number) {
+  if (!cacheKey || !Number.isSafeInteger(total) || total < 0) return
+  if (ASSET_SIZE_CACHE.has(cacheKey)) ASSET_SIZE_CACHE.delete(cacheKey)
+  while (ASSET_SIZE_CACHE.size >= ASSET_SIZE_CACHE_MAX) {
+    const oldest = ASSET_SIZE_CACHE.keys().next().value
+    if (oldest === undefined) break
+    ASSET_SIZE_CACHE.delete(oldest)
+  }
+  ASSET_SIZE_CACHE.set(cacheKey, total)
+}
+
+async function cancelResponseBody(response: Response, alreadyConsumed = false) {
+  if (alreadyConsumed || response.bodyUsed || !response.body || response.body.locked) return
+  await response.body.cancel().catch(() => {})
+}
+
+// 无 Content-Length 且冷启动 HEAD：流式统计总字节数后丢弃，避免整片写入内存
+async function countStreamBytes(body: ReadableStream<Uint8Array> | null): Promise<number> {
+  if (!body) return 0
+  const reader = body.getReader()
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return total
+      total += value.byteLength
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+// 无 Content-Length 且冷启动全量 GET：边转发流边累计字节数，读完后回填缓存，后续 Range 可直接切片
+function countThroughStream(
+  body: ReadableStream<Uint8Array>,
+  onComplete: (total: number) => void,
+): ReadableStream<Uint8Array<ArrayBuffer>> {
+  const reader = body.getReader()
+  let total = 0
+  return new ReadableStream<Uint8Array<ArrayBuffer>>({
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (done) {
+        onComplete(total)
+        controller.close()
+        return
+      }
+      total += value.byteLength
+      controller.enqueue(new Uint8Array(value))
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    },
+  })
+}
+
 // P0-4：接管 Static Assets 下 /demo/*.mp4，优先读取 R2 demo/<name>，否则从 env.ASSETS 按 Range 切片输出 206 Partial Content
 export async function handleDemoVideoRequest(request: Request, env: Env, pathname: string): Promise<Response | null> {
   const match = DEMO_MP4_PATH.exec(pathname)
@@ -138,30 +201,35 @@ export async function handleDemoVideoRequest(request: Request, env: Env, pathnam
   const r2Response = await serveR2Object(env.MEDIA, `demo/${match[1]}`, request, { cacheControl })
   if (r2Response.status !== 404) {
     if (request.method === 'HEAD') {
-      await r2Response.body?.cancel()
+      await cancelResponseBody(r2Response)
       return new Response(null, { status: r2Response.status, headers: r2Response.headers })
     }
     return r2Response
   }
+  await cancelResponseBody(r2Response)
 
   if (!env.ASSETS) return null
   const asset = await env.ASSETS.fetch(new Request(new URL(pathname, request.url).toString(), { method: 'GET' }))
   if (!asset.ok) {
-    await asset.body?.cancel()
+    await cancelResponseBody(asset)
     return new Response('Not found', { status: asset.status === 404 ? 404 : 502 })
   }
   const etag = asset.headers.get('etag')
   if (etag && request.headers.get('if-none-match') === etag) {
-    await asset.body?.cancel()
+    await cancelResponseBody(asset)
     return new Response(null, { status: 304, headers: { ETag: etag, 'Accept-Ranges': 'bytes', 'Cache-Control': cacheControl } })
   }
 
-  let total = Number(asset.headers.get('content-length') ?? NaN)
-  let fallbackBytes: Uint8Array<ArrayBuffer> | null = null
-  if (!Number.isSafeInteger(total) || total < 0 || !asset.body) {
-    fallbackBytes = new Uint8Array(await asset.arrayBuffer())
-    total = fallbackBytes.byteLength
-  }
+  const rawLength = asset.headers.get('content-length')
+  const headerTotal = rawLength !== null && rawLength.trim() !== '' ? Number(rawLength) : NaN
+  const cacheKey = etag ? `${pathname}:${etag}` : null
+  const cachedTotal = cacheKey ? ASSET_SIZE_CACHE.get(cacheKey) : undefined
+  let total =
+    Number.isSafeInteger(headerTotal) && headerTotal >= 0
+      ? headerTotal
+      : cachedTotal !== undefined
+        ? cachedTotal
+        : NaN
 
   const headers = new Headers({
     'Content-Type': asset.headers.get('content-type') || 'video/mp4',
@@ -170,9 +238,36 @@ export async function handleDemoVideoRequest(request: Request, env: Env, pathnam
   })
   if (etag) headers.set('ETag', etag)
 
-  const parsed = parseByteRange(request.headers.get('range'), total)
+  const rangeHeader = request.headers.get('range')
+  const hasByteRange = /^bytes=/i.test(rangeHeader?.trim() ?? '')
+  if (!hasByteRange && request.method !== 'HEAD' && (!Number.isSafeInteger(total) || total < 0)) {
+    if (!asset.body) {
+      headers.set('Content-Length', '0')
+      cacheAssetSize(cacheKey, 0)
+      return new Response(null, { status: 200, headers })
+    }
+    return new Response(countThroughStream(asset.body, (seen) => cacheAssetSize(cacheKey, seen)), { status: 200, headers })
+  }
+
+  let fallbackBytes: Uint8Array<ArrayBuffer> | null = null
+  let bodyConsumed = false
+  if (!Number.isSafeInteger(total) || total < 0) {
+    if (request.method === 'HEAD') {
+      total = await countStreamBytes(asset.body)
+      bodyConsumed = true
+    } else {
+      fallbackBytes = new Uint8Array(await asset.arrayBuffer())
+      bodyConsumed = true
+      total = fallbackBytes.byteLength
+    }
+    cacheAssetSize(cacheKey, total)
+  } else if (!asset.body && request.method !== 'HEAD') {
+    fallbackBytes = new Uint8Array(0)
+  }
+
+  const parsed = parseByteRange(rangeHeader, total)
   if (parsed === 'unsatisfiable') {
-    await asset.body?.cancel()
+    await cancelResponseBody(asset, bodyConsumed)
     headers.set('Content-Range', `bytes */${total}`)
     return new Response(null, { status: 416, headers })
   }
@@ -181,7 +276,7 @@ export async function handleDemoVideoRequest(request: Request, env: Env, pathnam
     headers.set('Content-Range', `bytes ${parsed.start}-${parsed.end}/${total}`)
     headers.set('Content-Length', String(length))
     if (request.method === 'HEAD') {
-      await asset.body?.cancel()
+      await cancelResponseBody(asset, bodyConsumed)
       return new Response(null, { status: 206, headers })
     }
     const body: BodyInit = fallbackBytes
@@ -192,7 +287,7 @@ export async function handleDemoVideoRequest(request: Request, env: Env, pathnam
 
   headers.set('Content-Length', String(total))
   if (request.method === 'HEAD') {
-    await asset.body?.cancel()
+    await cancelResponseBody(asset, bodyConsumed)
     return new Response(null, { status: 200, headers })
   }
   const body: BodyInit | null = fallbackBytes ?? (asset.body as ReadableStream<Uint8Array<ArrayBuffer>> | null)

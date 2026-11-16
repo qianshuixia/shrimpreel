@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { defaultStyle } from '../../src/config/site'
 import { content } from '../e2e/helpers'
 
 // 线上只读巡检（playwright.smoke.config.ts）：部署后确认页面能打开、开发与 mock 入口已关闭、未登录拿不到数据、
@@ -152,4 +153,22 @@ test('llms.txt 可访问，以站点名开头', async ({ request }) => {
   expect(res.status()).toBe(200)
   expect(res.headers()['content-type']).toContain('text/plain')
   expect((await res.text()).startsWith('# ')).toBe(true)
+})
+
+test('演示视频支持 Safari Range 206 与 HEAD 探测', async ({ request }) => {
+  const demoPath = defaultStyle.examples.original.video
+  const partial = await request.get(demoPath, { headers: { range: 'bytes=0-99' } })
+  expect(partial.status()).toBe(206)
+  expect(partial.headers()['accept-ranges']).toBe('bytes')
+  expect(partial.headers()['content-range']).toMatch(/^bytes 0-99\/\d+$/)
+  expect((await partial.body()).byteLength).toBe(100)
+
+  const head = await request.head(demoPath)
+  expect(head.status()).toBe(200)
+  expect(head.headers()['accept-ranges']).toBe('bytes')
+  expect(Number(head.headers()['content-length'])).toBeGreaterThan(100)
+
+  const headRange = await request.head(demoPath, { headers: { range: 'bytes=0-99' } })
+  expect(headRange.status()).toBe(206)
+  expect(headRange.headers()['content-range']).toMatch(/^bytes 0-99\/\d+$/)
 })

@@ -317,6 +317,7 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 - `production.spec.ts` › `跨站 POST 被 CSRF 拦下；未签名的支付与生成回调被拒`
 - `production.spec.ts` › `健康检查与未登录会话：开发登录关闭，支付商不是 mock`
 - `production.spec.ts` › `安全响应头：页面带 CSP，https 下有 HSTS，接口不带 CSP`
+- `production.spec.ts` › `演示视频支持 Safari Range 206 与 HEAD 探测`
 - 另有 sitemap 全部页面可打开、首页水合、未登录拒绝、robots 与环境一致等用例。
 
 ## 支付商 sandbox（tests/sandbox）
