@@ -1,10 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // 新站点：改 name、routes、database_name/id、bucket_name、queue 名称，再改 src/config/site.ts
+  // 新站点：改 name、database_name/id、bucket_name、kv id、queue 名称和 src/config/site.ts；绑自定义域名时再新增 routes
   "name": "video-template",
   "main": "src/server.ts",
   "compatibility_date": "2026-06-19",
   "compatibility_flags": ["nodejs_compat"],
+  // 模板默认开启 workers.dev 方便未绑域名前访问；上线绑自定义域名后新增 "routes": [{ "pattern": "example.com", "custom_domain": true }]，并设 "workers_dev": false、"preview_urls": false
   "workers_dev": true,
   "observability": { "enabled": true, "head_sampling_rate": 0.1 },
   "limits": { "cpu_ms": 30000 },
