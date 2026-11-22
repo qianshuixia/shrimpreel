@@ -21,15 +21,30 @@ describe('site.styles', () => {
     expect([...DISPLAY_STYLES].map((s) => s.id).sort()).toEqual(STYLES.map((s) => s.id).sort())
   })
 
-  it('每个风格的 sources 覆盖所有时长档位，文件名不重复', () => {
-    const files: string[] = []
+  // 换装风格可以借用别的风格的源视频（同一段动作），但首帧必须不同，否则两个风格出的片子一样，多半是复制时漏改
+  it('每个风格的 sources 覆盖所有时长档位；同一风格内文件不重复，跨风格共用源视频时首帧各不相同', () => {
+    const users = new Map<string, string[]>() // 源视频文件名 → 用它的风格的首帧（没有两步走记为 '-'）
     for (const style of STYLES) {
-      for (const d of styleDurations(style)) {
+      const files = styleDurations(style).map((d) => {
         expect(style.sources[d.id], `${style.id} 缺 ${d.id} 的源视频`).toBeTruthy()
-        files.push(style.sources[d.id]!)
-      }
+        return style.sources[d.id]!
+      })
+      expect(new Set(files).size, `${style.id} 的时长档位共用了同一个源视频`).toBe(files.length)
+      for (const file of new Set(files)) users.set(file, [...(users.get(file) ?? []), style.scene?.frame ?? '-'])
     }
-    expect(new Set(files).size).toBe(files.length)
+    for (const [file, frames] of users) {
+      if (frames.length < 2) continue
+      expect(frames.includes('-'), `${file} 被多个风格共用，每个都要有自己的 scene.frame`).toBe(false)
+      expect(new Set(frames).size, `${file} 被多个风格共用，scene.frame 不能相同`).toBe(frames.length)
+    }
+  })
+
+  it('两步走的首帧是 seed/templates/ 里存在的图片', () => {
+    for (const style of STYLES) {
+      if (!style.scene) continue
+      expect(style.scene.frame, style.id).toMatch(/\.(jpe?g|png)$/)
+      expect(existsSync(`seed/templates/${style.scene.frame}`), `seed/templates/${style.scene.frame} 不存在`).toBe(true)
+    }
   })
 
   it('配了背景音乐的风格覆盖所有时长档位，文件是 seed/templates/ 里存在的 .m4a', () => {

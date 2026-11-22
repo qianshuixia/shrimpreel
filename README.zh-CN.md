@@ -89,7 +89,7 @@ npm run dev -- --host 127.0.0.1      # http://127.0.0.1:3000
    - 文案按语言拆包，浏览器只下载当前语言（含法律页全文）。组件里照常用 `getContent(locale)`；只有在根路由之外、渲染之前要用文案时，才需要先 `await loadContent(locale)`。
    - 加一种语言：在 `site.ts` 的 `LOCALES` 和 `LOCALE_META` 里登记，新建 `src/content/<locale>.ts`（类型与 `en.ts` 一致），再在 `src/lib/i18n.ts` 的 `loaders` 里加一行动态 import。
 4. **换素材**：
-   - `seed/templates/<风格 id>-<秒数>s.mp4`：生成用的源视频，每种风格的每个时长档位一段（`site.styles[].sources`），部署后上传到 R2 的 `templates/`。
+   - `seed/templates/<风格 id>-<秒数>s.mp4`：生成用的源视频，每种风格的每个时长档位一段（`site.styles[].sources`），部署后上传到 R2 的 `templates/`。换装风格（同一段舞换一套服装和场景）可以直接用另一个风格的源视频文件，只换 `scene.frame` 首帧；共用源视频的风格都要有自己的、互不相同的首帧（单测会查），否则出的片子一样。
    - `seed/templates/<风格 id>-<秒数>s.m4a`（可选）：背景音乐，每种风格的每个时长档位一段 AAC（`site.styles[].music`，键 = `durations[].id`，默认 `null`）。配了之后，成片存进 R2 后服务端用纯 JS（`mediabunny`，视频流逐包拷贝、不重编码）把成片原有音轨换成这段音乐，发生在审核和 XMP 标记之前。每段时长应等于档位且结尾自带淡出，超出视频时长的音频会被丢掉。和源视频一样上传，`--content-type audio/mp4`。任何一步失败（R2 里缺文件、成片超过 48 MB、MP4 读不了）都保持服务商出的原样，任务照常成功。音乐必须拥有商用授权（例如自己生成、条款允许商用的 AI 音乐），不能用别人的歌。站点文案若写着视频无声，要同步改。
    - `public/demo/*`：首页展示视频和海报。必须是自有或已获授权的素材，在 `site.styles[].examples.*.credit` 写明来源。
    - `public/og.png`、`public/favicon.svg`。

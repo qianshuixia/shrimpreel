@@ -6,6 +6,17 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 ## 2026-11-22
 
+### Changed: costume styles can share source videos
+
+- Two styles may now point `sources` at the same files, as long as each has its own `scene.frame` and the frames differ: the same dance in a different outfit and scene, without copying the videos. `tests/unit/styles.test.ts` still fails when a style repeats a file across its own durations, or when styles share a source without distinct first frames (they would produce the same video). A new test checks that every `scene.frame` exists in `seed/templates/`.
+
+Upgrading a site: merge upstream; nothing to change. If an existing `scene.frame` points to a file that isn't in `seed/templates/`, add it there (it is uploaded to R2 `templates/` with the source videos).
+
+变更：换装风格可以共用源视频。
+- 两个风格的 `sources` 现在可以指向同一批文件，前提是各自有 `scene.frame` 且首帧不同：同一段舞换一套服装和场景，不用复制视频。同一风格的不同时长档位用了同一个文件，或者共用源视频的风格没有各自不同的首帧（出的片子会一样），`tests/unit/styles.test.ts` 照样失败。新增一条测试检查每个 `scene.frame` 都在 `seed/templates/` 里。
+
+站点升级：合并 upstream 即可，不用改别的。已有的 `scene.frame` 如果不在 `seed/templates/` 里，补进去（它和源视频一起上传到 R2 的 `templates/`）。
+
 ### Added: style landing pages
 
 - An article with a valid `style` and `landing: true` becomes that style's landing page: the generator (style preselected) and the style's sample videos at the top, then the body, the three steps, the FAQ and links to the other styles (to their landing pages when they have one). The steps and the closing button point to `#create` on the page, the breadcrumb and BreadcrumbList are Home → page, a signed-out visitor returns to the page after signing in, and the home page's "Made with" links the style name to it (now shown on a single-style site too when the style has a landing page). With an unknown `style` the article renders as before. Helper: `styleLandingArticle(styleId)`.
