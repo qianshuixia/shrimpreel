@@ -6,7 +6,7 @@ import { Generator } from '#/components/Generator'
 import { Pricing } from '#/components/Pricing'
 import { VideoCard } from '#/components/VideoCard'
 import { LocalLink } from '#/components/ui'
-import { DISPLAY_STYLES, STYLES, articlePath, featuredStyle, findStyle, formatPrice, site } from '#/config/site'
+import { DISPLAY_STYLES, STYLES, articlePath, featuredStyle, findStyle, formatPrice, site, styleLandingArticle } from '#/config/site'
 import { getContent, localeFromParam, pageHead, useContent } from '#/lib/i18n'
 import { homeJsonLd, jsonLdScript } from '#/lib/seo'
 
@@ -116,10 +116,10 @@ function Home() {
             </div>
             <p className="text-center text-xs text-muted">{c.hero.creditNote}</p>
             <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm font-medium">
-              <LocalLink to={articlePath('trend')} className="inline-flex items-center gap-1.5 hover:text-accent">
+              <LocalLink to={articlePath('trend')} className="inline-flex items-center gap-1.5 hover:text-accent-text">
                 {c.articles.trend.title} <ArrowRight className="size-4" />
               </LocalLink>
-              <LocalLink to={articlePath('howTo')} className="inline-flex items-center gap-1.5 hover:text-accent">
+              <LocalLink to={articlePath('howTo')} className="inline-flex items-center gap-1.5 hover:text-accent-text">
                 {c.articles.howTo.title} <ArrowRight className="size-4" />
               </LocalLink>
             </div>
@@ -201,7 +201,7 @@ function Home() {
             <a href="#create" className="btn-primary">
               {c.howTo.cta}
             </a>
-            <LocalLink to={articlePath('howTo')} className="inline-flex items-center gap-1.5 hover:text-accent">
+            <LocalLink to={articlePath('howTo')} className="inline-flex items-center gap-1.5 hover:text-accent-text">
               {c.howTo.guide} <ArrowRight className="size-4" />
             </LocalLink>
           </div>
@@ -216,13 +216,19 @@ function Home() {
             <h2 className="font-display text-4xl leading-tight sm:text-5xl">{c.madeWith.title}</h2>
             <p className="max-w-md text-lg leading-8 text-muted">{c.madeWith.body}</p>
           </div>
-          {/* 每种风格各一行（服务端渲染，不依赖 JS）；单风格时不显示风格名 */}
+          {/* 每种风格各一行（服务端渲染，不依赖 JS）；单风格且没有落地页时不显示风格名 */}
           <div className="space-y-10">
             {DISPLAY_STYLES.map((s) => (
               <div key={s.id} className="space-y-3" data-testid={`made-with-${s.id}`}>
-                {STYLES.length > 1 ? (
+                {STYLES.length > 1 || styleLandingArticle(s.id) ? (
                   <p className="text-sm">
-                    <span className="font-semibold">{styleCopy(s.id).name}</span>
+                    {styleLandingArticle(s.id) ? (
+                      <LocalLink to={`/${styleLandingArticle(s.id)!.slug}`} className="font-semibold hover:text-accent-text" data-testid={`made-with-link-${s.id}`}>
+                        {styleCopy(s.id).name}
+                      </LocalLink>
+                    ) : (
+                      <span className="font-semibold">{styleCopy(s.id).name}</span>
+                    )}
                     <span className="text-muted"> · {styleCopy(s.id).tagline}</span>
                   </p>
                 ) : null}
@@ -253,7 +259,7 @@ function Home() {
               {paragraph}
             </p>
           ))}
-          <LocalLink to={articlePath('trend')} className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent">
+          <LocalLink to={articlePath('trend')} className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent-text">
             {c.whatIs.guide} <ArrowRight className="size-4" />
           </LocalLink>
         </div>
@@ -318,7 +324,7 @@ function Home() {
                     <span className="font-display text-5xl text-accent">0{index + 1}</span>
                     <h3 className="font-display text-3xl">{idea.title}</h3>
                     <p className="max-w-md text-lg leading-8 text-muted">{idea.body}</p>
-                    <a href="#create" className="inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent">
+                    <a href="#create" className="inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent-text">
                       {c.ideas.cta} <ArrowRight className="size-4" />
                     </a>
                   </div>

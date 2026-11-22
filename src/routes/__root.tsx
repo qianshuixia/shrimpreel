@@ -12,6 +12,7 @@ import { installErrorReporting, reportClientError } from '#/lib/error-report'
 import { htmlLang, loadContent, localeFromPathname, useContent } from '#/lib/i18n'
 import { SessionProvider } from '#/lib/session'
 import { THEME_COLOR } from '#/lib/theme'
+import holidayFont from '../assets/fonts/young-serif-latin.woff2?url'
 import css from '../styles.css?url'
 
 // 首屏前设置主题，避免闪烁
@@ -61,6 +62,10 @@ export const Route = createRootRoute({
     links: [
       { rel: 'stylesheet', href: css },
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      // holiday 的标题字体是 font-display: optional，不预加载的话首次访问基本赶不上首次渲染
+      ...(site.theme === 'holiday'
+        ? [{ rel: 'preload', href: holidayFont, as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' as const }]
+        : []),
     ],
     scripts: headScripts(),
   }),

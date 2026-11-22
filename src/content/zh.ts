@@ -539,6 +539,7 @@ export function zh(s: S): Content {
       styleDemo: `看看 ${k} 的效果`,
       faqTitle: '常见问题',
       related: '相关指南',
+      otherStyles: `更多 ${k} 风格`,
     },
     errors: {
       unauthorized: '请先登录。',

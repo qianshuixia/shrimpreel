@@ -227,6 +227,23 @@
 - 测试：`tests/unit/theme.test.ts`；e2e `seo.spec.ts` 1 个（问问 AI 链接、中文提问、llms.txt）。acid 和 classic 的亮色、暗色、手机截图在 `.tmp/theme-acid/`。
 - 未验证：同意卡片没有 e2e（模板默认不填 `ga4Id`），只用临时 `ga4Id` 在浏览器里看过显示和 ×；各家 AI 是否按预填提问自动提交、Gemini 预填走的是 Google AI Mode。
 
+**#38 风格落地页**（2026-11-22，参考圣诞视频竞品“每个模板一个页面”的做法）
+
+- 文章加 `landing: true`（同时要有有效的 `style`）就成为该风格的落地页：顶部是预选该风格的生成器和样片，下面是正文、三步流程、FAQ、其他风格入口，三步流程和文末按钮都指向本页 `#create`；面包屑和 BreadcrumbList 只有首页 → 本页；首页“Made with”的风格名链过去。`style` 无效时按普通文章渲染。
+- 新增 `styleLandingArticle(styleId)`；文案新增 `guides.otherStyles`（站点文件，合并后要补）。站内从一个落地页点到另一个时，生成器的预选风格跟着换（按 slug 重新挂载）。
+- 文章 content 可选 `steps` 替换首页的三步；双人风格或有自己 `durations` 的风格，落地页必须写（`tests/unit/styles.test.ts`）。三步始终写本页风格，生成器里换风格后以上传槽和时长卡片为准，和首页一致。落地页不显示 `cover`，封面只作分享图、`Article.image` 和列表配图。单风格站只要有落地页，首页 Made with 也显示风格名并链过去。
+- Codex 评审（2026-11-22，FAIL → 已修）：双人落地页的三步、单风格站缺入口、封面与落地页叠加、holiday 暗色悬停对比度四条 BLOCKING 已改；丝带选择器收窄到 `.site-header` / `.site-footer`。没采纳：落地页用例写死 `starter`（全套 e2e 都这样用）、对照文章缺失时整条跳过（原有行为）。第 2 轮：有自己 `durations` 的风格也必须写 `steps`（已加进单测）；“生成器换风格后三步不跟着换”不改，理由同上。
+- 测试：e2e `seo.spec.ts` 新增“风格落地页”1 个（SSR 有生成器和样片、中英各一、三步来源、登录回跳、首页 Made with 链接、多风格时其他风格入口和站内切换、生成记录的 `templateId`）；原“文章可选能力”只挑非落地页的绑定文章，“文章封面”优先选普通文章。
+- 未验证：模板只有一种风格，多风格分支（其他风格入口、站内切换、首页链接）要在多风格站点上跑。
+
+**#39 圣诞主题 `holiday`**（2026-11-22，参考圣诞视频竞品的节日感，配色和装饰自己定）
+
+- 第三套主题：亮色霜白、暗色“平安夜”深松绿，蔓越莓红强调、暖金点缀；标题用 Young Serif（SIL OFL 1.1，拉丁子集 27 KB 自托管在 `src/assets/fonts/`，`font-display: optional` 加 `<link rel="preload">`，只有 holiday 站点预加载），中文标题回退系统衬线；页头 6px、页脚 12px 格纹丝带，首屏两层慢速飘雪（`prefers-reduced-motion` 下静止）。全部是 CSS，没有改组件结构。
+- `@source not './assets'`：字体许可证文本里的英文单词会被 Tailwind 当成类名扫进来。
+- 对比度（WCAG AA）：暗色 `--accent` 取 `#cf3149`，白字 5.01:1、按钮悬停 opacity-90 后 4.74:1、卡片上的大号数字 3.03:1。所有主题的链接悬停文字改用 `--accent-text`（classic 亮色原来 3.97:1，acid 亮色几乎看不见）。
+- 测试：`tests/unit/theme.test.ts` 自动覆盖新主题的亮色、暗色两组变量；e2e seo + smoke 11 个通过（模板仍是 classic）；评审修复后完整 e2e 88 个通过、4 个按模板配置跳过（多风格、双人、aiMetadata、欺诈预警自动退款），日志 `.tmp/christmas-theme-pages/e2e-full.log`。亮色、暗色、桌面、手机截图在 `.tmp/christmas-theme-pages/holiday-shots/`（首页、中文首页、落地页、价格页、指南、登录页）。
+- 未验证：没有用 `site.theme = 'holiday'` 跑过 e2e 和生产构建的 SSR preload，第一个切换到 holiday 的站点做；暗色下文末 CTA 卡片沿用现有反色（奶油底），没有单独调。
+
 **#6 积分分批次与过期**（2026-10-21）
 
 - 迁移 `0009_credit_grants.sql`：批次表 `credit_grants`、扣减明细 `credit_allocations`、断言表 `credit_guard`；现有余额转成永不过期的 `legacy` 批次。

@@ -52,7 +52,7 @@ function ContactPage() {
     <div className="container-page max-w-2xl py-16">
       <h1 className="font-display text-5xl">{t.title}</h1>
       <p className="mt-4 text-muted">{t.body}</p>
-      <LocalLink to="/guides" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent">
+      <LocalLink to="/guides" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent-text">
         {t.guides} <ArrowRight className="size-4" />
       </LocalLink>
       {state === 'sent' ? (

@@ -1,5 +1,7 @@
 /* 只扫描 src/：默认会扫整个仓库，README、docs 里像类名的词会被编进 CSS，dev 下改文档还会让页面整页刷新 */
 @import 'tailwindcss' source('.');
+/* 字体和它的许可证文本不是代码，许可证里的英文单词会被当成类名 */
+@source not './assets';
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
@@ -95,6 +97,74 @@
   --accent-text: oklch(93% 0.2 112);
   --accent-2: oklch(80% 0.12 200);
   --glow: oklch(93% 0.2 112 / 0.1);
+  color-scheme: dark;
+}
+
+/* holiday：圣诞。亮色是偏冷的霜白，暗色是“平安夜”深松绿；蔓越莓红强调、暖金点缀，标题用 Young Serif。
+   格纹丝带（页头、页脚、Logo）和首屏飘雪写在文件末尾。暗色一组同样要把颜色全部重写 */
+@font-face {
+  font-family: 'Young Serif';
+  font-style: normal;
+  font-weight: 400;
+  /* optional：字体在首次渲染前到了才用，没到就整页用后备衬线，不会中途换字体造成布局偏移；__root 里按主题 preload */
+  font-display: optional;
+  src: url('./assets/fonts/young-serif-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+[data-skin='holiday'] {
+  --font-display-family: 'Young Serif', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Songti SC', 'STSong',
+    serif;
+  --btn-radius: 9999px;
+  --card-radius: 1.25rem;
+  --field-radius: 0.75rem;
+  --btn-primary-bg: var(--accent);
+  --btn-primary-fg: var(--accent-fg);
+  --accent-fg: #ffffff;
+  /* 格纹：蔓越莓红底，半透明松绿宽条横竖交叉（交叉处更深），细金线；Logo 和丝带共用 */
+  --tartan:
+    repeating-linear-gradient(90deg, rgb(15 46 36 / 0.55) 0 6px, transparent 6px 11px, rgb(240 200 100 / 0.95) 11px 12px, transparent 12px 24px),
+    repeating-linear-gradient(0deg, rgb(15 46 36 / 0.55) 0 6px, transparent 6px 11px, rgb(240 200 100 / 0.95) 11px 12px, transparent 12px 24px),
+    linear-gradient(#c3203a, #c3203a);
+  --logo-bg: var(--tartan);
+  --logo-fg: #ffffff;
+  --footer-bg: #0f2e24;
+  --footer-fg: #f3efe6;
+  --bg: #f3f6f2;
+  --bg-soft: #e7eee8;
+  --card: #fdfefc;
+  --fg: #14231d;
+  --muted: #56655d;
+  --line: #d9e3dc;
+  --ink: #123d2f;
+  --ink-fg: #f6f3ea;
+  --accent: #c3203a;
+  --accent-text: #b01c34;
+  --accent-2: #c9972f;
+  --glow: rgb(195 32 58 / 0.1);
+  /* 亮色的雪用淡松绿：白雪落在霜白上看不见 */
+  --snow: rgb(18 61 47 / 0.2);
+  color-scheme: light;
+}
+
+[data-skin='holiday'][data-theme='dark'] {
+  --footer-bg: #07130f;
+  --footer-fg: #f3efe6;
+  --bg: #0b1a15;
+  --bg-soft: #10241d;
+  --card: #132a22;
+  --fg: #f3efe6;
+  --muted: #a3b2a9;
+  --line: #22392f;
+  --ink: #f3efe6;
+  --ink-fg: #0b1a15;
+  /* 按钮白字对它要 ≥ 4.5:1（悬停 opacity-90 后仍 ≥ 4.5:1），大号数字对卡片 ≥ 3:1，所以比小字用的 --accent-text 深 */
+  --accent: #cf3149;
+  --accent-text: #ff7d8c;
+  --accent-2: #e2b552;
+  --glow: rgb(207 49 73 / 0.16);
+  --snow: rgb(255 255 255 / 0.5);
   color-scheme: dark;
 }
 
@@ -244,6 +314,107 @@
 
 .hero-glow {
   background: radial-gradient(60% 50% at 70% 30%, var(--glow), transparent 70%);
+}
+
+/* holiday：Young Serif 只有 400 一种字重，不让浏览器假粗、假斜（页脚 italic 的宣言保持正体）；
+   品牌名用标题字体、正常大小写；小标签不用全大写 */
+[data-skin='holiday'] .font-display {
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: -0.01em;
+}
+[data-skin='holiday'] .brand-name {
+  font-family: var(--font-display-family);
+  font-size: 1.25rem;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+  text-transform: none;
+}
+[data-skin='holiday'] .eyebrow {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+[data-skin='holiday'] .site-header .eyebrow {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* 格纹丝带：页头顶边一条细的，页脚顶边一条宽的；绝对定位，不改变页头高度 */
+[data-skin='holiday'] .site-header::before,
+[data-skin='holiday'] .site-footer::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 6px;
+  background: var(--tartan);
+  /* 竖条那层错开，让金线落在丝带中间 */
+  background-position:
+    0 0,
+    0 -9px,
+    0 0;
+  pointer-events: none;
+}
+[data-skin='holiday'] .site-footer {
+  position: relative;
+}
+[data-skin='holiday'] .site-footer::before {
+  height: 12px;
+  background-position:
+    0 0,
+    0 -3px,
+    0 0;
+}
+
+/* 首屏飘雪：两层不同大小、不同速度的雪点，纯 CSS，只动 transform；每层下移一个图案周期后无缝循环。
+   首屏内容容器是 relative 且排在后面，雪落在内容后面 */
+[data-skin='holiday'] .hero-glow {
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+[data-skin='holiday'] .hero-glow::before,
+[data-skin='holiday'] .hero-glow::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--snow-tile) * -1) 0 0;
+  background-size: var(--snow-tile) var(--snow-tile);
+  animation: holiday-snow var(--snow-duration) linear infinite;
+  will-change: transform;
+}
+/* 远处：小而慢。图案块要大、块内雪点位置不规则，否则看得出网格 */
+[data-skin='holiday'] .hero-glow::before {
+  --snow-tile: 360px;
+  --snow-duration: 40s;
+  background-image:
+    radial-gradient(circle at 8% 12%, var(--snow) 0 1.3px, transparent 2.4px),
+    radial-gradient(circle at 37% 29%, var(--snow) 0 1px, transparent 2px),
+    radial-gradient(circle at 71% 8%, var(--snow) 0 1.5px, transparent 2.6px),
+    radial-gradient(circle at 23% 62%, var(--snow) 0 1.1px, transparent 2.1px),
+    radial-gradient(circle at 56% 80%, var(--snow) 0 1.4px, transparent 2.5px),
+    radial-gradient(circle at 90% 53%, var(--snow) 0 1px, transparent 2px);
+}
+/* 近处：稍大稍快，更稀 */
+[data-skin='holiday'] .hero-glow::after {
+  --snow-tile: 520px;
+  --snow-duration: 40s;
+  background-image:
+    radial-gradient(circle at 17% 38%, var(--snow) 0 2.2px, transparent 3.6px),
+    radial-gradient(circle at 49% 7%, var(--snow) 0 1.8px, transparent 3.2px),
+    radial-gradient(circle at 83% 71%, var(--snow) 0 2.4px, transparent 3.8px),
+    radial-gradient(circle at 64% 46%, var(--snow) 0 1.6px, transparent 3px);
+}
+@keyframes holiday-snow {
+  to {
+    transform: translateY(var(--snow-tile));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-skin='holiday'] .hero-glow::before,
+  [data-skin='holiday'] .hero-glow::after {
+    animation: none;
+  }
 }
 
 @keyframes spin-slow {

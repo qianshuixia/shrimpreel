@@ -35,7 +35,7 @@ function PricingPage() {
         </div>
         <Pricing />
         <p className="mt-8 text-center">
-          <LocalLink to={articlePath('howTo')} className="inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent">
+          <LocalLink to={articlePath('howTo')} className="inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent-text">
             {c.pricing.guide} <ArrowRight className="size-4" />
           </LocalLink>
         </p>

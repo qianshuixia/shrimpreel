@@ -265,9 +265,12 @@ e2e 跑在本地 dev server 上，支付、视频、审核服务商都是 mock�
 - `seo.spec.ts` › `语言链接：SSR 中可抓取，点击后保留路径、查询参数和 hash`
 - `seo.spec.ts` › `页脚“问问 AI”：SSR 中带 nofollow 链接，中文站用中文提问并附 llms.txt，llms.txt 可访问`
 - `seo.spec.ts` › `文章封面：卡片和文章顶部显示，og:image 与 Article.image 用封面，SPA 切换后不残留；没填的用默认图`
-  - 每个 `cover` 文件都能访问（路径写错即失败）；SSR 只有一个 `og:image` 且宽高声明在它后面；列表 → 文章 → 列表走 SPA 导航后 `og:image` 先换成封面、再恢复默认图。
+  - 每个 `cover` 文件都能访问（路径写错即失败）；SSR 只有一个 `og:image` 且宽高声明在它后面；列表 → 文章 → 列表走 SPA 导航后 `og:image` 先换成封面、再恢复默认图。优先选普通文章；只有落地页带封面时，断言落地页不显示封面图、用浏览器后退回列表。
 - `seo.spec.ts` › `文章可选能力：绑定风格显示样片并预选风格、带 FAQ 输出 FAQPage、段落表格；没填的文章不变`
   - 带 `style` 的文章（中英各一）在导语后显示该风格的原片 + AI 样片（视频数一致），文末 CTA 为 `/?style=<id>#create`；带 `faq` 的文章显示折叠问答（可展开）且只输出一个 FAQPage，问题数与 content 一致；段落的 `table` 渲染出的表头、行数与 content 一致，首列是 `th[scope=row]`；没有 style、faq 的文章没有样片区块和 FAQPage，CTA 仍是 `/#create`。
+  - 只挑非落地页（没开 `landing`）的绑定风格文章；模板示例的绑定风格文章是落地页，所以模板里只跑对照部分，绑定部分在有普通绑定文章的站点上跑。
+- `seo.spec.ts` › `风格落地页：顶部嵌入预选该风格的生成器和样片，CTA 留在本页，站内切到另一落地页时预选跟着换，访客登录回跳本页，生成记录是该风格`
+  - 优先选主推以外的单人风格落地页。SSR HTML 里有 `#create` 和该风格原片；中英各一：唯一 H1、生成器在 `#create` 且（多风格时）预选本页风格、样片视频数一致、没有 `article-style-demo`、面包屑和 BreadcrumbList 都只有两级、三步流程（文章写了 `steps` 就是文章的三步）与文末 CTA 是 `#create`、FAQPage 恰好一个、访客登录链接的 `redirect` 是本页路径；多风格时“其他风格”每项链到该风格的落地页或 `/?style=<id>#create`，点到另一落地页后预选和样片换成新风格；首页 Made with 的风格名链到落地页（单风格站也是）；登录买 starter 后在落地页生成成功，记录的 `templateId` 是本页风格。
 
 ## P1 运营与数据管理
 

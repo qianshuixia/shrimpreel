@@ -1,10 +1,13 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
+import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { ArticleCards } from '#/components/ArticleCards'
 import { faqJsonLd, FaqList } from '#/components/Faq'
-import { Breadcrumbs, formatDay } from '#/components/ui'
+import { Generator } from '#/components/Generator'
+import { Breadcrumbs, formatDay, LocalLink } from '#/components/ui'
 import { VideoCard } from '#/components/VideoCard'
-import { findArticle, findStyle, relatedArticles, site } from '#/config/site'
+import type { Article } from '#/config/site'
+import { DISPLAY_STYLES, STYLES, findArticle, findStyle, relatedArticles, site, styleLandingArticle } from '#/config/site'
 import type { ArticleContent } from '#/content/en'
 import { absoluteUrl, getContent, localeFromParam, pageHead, useContent, useLocale, useLocalePath } from '#/lib/i18n'
 import { articleJsonLd, breadcrumbJsonLd, jsonLdScript } from '#/lib/seo'
@@ -46,23 +49,77 @@ export const Route = createFileRoute('/{-$locale}/$slug')({
       ],
       scripts: [
         jsonLdScript(articleJsonLd(locale, path, text, article)),
-        jsonLdScript(breadcrumbJsonLd(locale, c.meta.breadcrumbHome, breadcrumbItems(c, text.title, path))),
+        jsonLdScript(breadcrumbJsonLd(locale, c.meta.breadcrumbHome, breadcrumbItems(c, text.title, path, isLanding(article)))),
         ...(text.faq?.length ? [jsonLdScript(faqJsonLd(text.faq))] : []),
       ],
     }
   },
-  component: ArticlePage,
+  component: ArticleRoute,
 })
 
-function breadcrumbItems(c: ReturnType<typeof getContent>, title: string, path: string) {
-  return [
-    { name: c.guides.title, path: '/guides' },
-    { name: title, path },
-  ]
+// 落地页：landing 开着且 style 有效；style 无效时按普通文章渲染
+function isLanding(article: Article) {
+  return !!article.landing && !!article.style && !!findStyle(article.style)
 }
 
-function ArticlePage() {
+// 落地页的面包屑只有“首页 → 本页”，普通文章多一级 Guides
+function breadcrumbItems(c: ReturnType<typeof getContent>, title: string, path: string, landing: boolean) {
+  return [...(landing ? [] : [{ name: c.guides.title, path: '/guides' }]), { name: title, path }]
+}
+
+function ArticleRoute() {
   const { article } = Route.useLoaderData()
+  // key 按文章区分：站内从一个落地页跳到另一个时组件会被复用，不重建的话预选风格和生成器状态会沿用上一页
+  return isLanding(article) ? <StyleLandingPage key={article.slug} article={article} /> : <ArticlePage article={article} />
+}
+
+// 正文 sections（prose + 表格），普通文章和落地页共用
+function ArticleBody({ text }: { text: ArticleContent }) {
+  return (
+    <div className="prose-article mt-6">
+      {text.sections.map((section) => (
+        <section key={section.h}>
+          <h2>{section.h}</h2>
+          {section.p.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+          {section.table ? (
+            <div className="my-6 overflow-x-auto">
+              <table>
+                <thead>
+                  <tr>
+                    {section.table.head.map((cell) => (
+                      <th key={cell} scope="col">
+                        {cell}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {section.table.rows.map((row) => (
+                    <tr key={row[0]}>
+                      {row.map((cell, i) =>
+                        i === 0 ? (
+                          <th key={i} scope="row">
+                            {cell}
+                          </th>
+                        ) : (
+                          <td key={i}>{cell}</td>
+                        ),
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      ))}
+    </div>
+  )
+}
+
+function ArticlePage({ article }: { article: Article }) {
   const c = useContent()
   const locale = useLocale()
   const lp = useLocalePath()
@@ -72,7 +129,7 @@ function ArticlePage() {
   const related = relatedArticles(article)
   return (
     <article className="container-page max-w-3xl py-16">
-      <Breadcrumbs items={breadcrumbItems(c, text.title, `/${article.slug}`)} />
+      <Breadcrumbs items={breadcrumbItems(c, text.title, `/${article.slug}`, false)} />
       <h1 className="font-display text-5xl leading-tight">{text.title}</h1>
       <p className="mt-4 text-sm text-muted">
         {c.common.lastUpdated}: <time dateTime={article.updatedAt}>{formatDay(article.updatedAt, locale)}</time>
@@ -111,46 +168,7 @@ function ArticlePage() {
           </div>
         </section>
       ) : null}
-      <div className="prose-article mt-6">
-        {text.sections.map((section) => (
-          <section key={section.h}>
-            <h2>{section.h}</h2>
-            {section.p.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-            {section.table ? (
-              <div className="my-6 overflow-x-auto">
-                <table>
-                  <thead>
-                    <tr>
-                      {section.table.head.map((cell) => (
-                        <th key={cell} scope="col">
-                          {cell}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.table.rows.map((row) => (
-                      <tr key={row[0]}>
-                        {row.map((cell, i) =>
-                          i === 0 ? (
-                            <th key={i} scope="row">
-                              {cell}
-                            </th>
-                          ) : (
-                            <td key={i}>{cell}</td>
-                          ),
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </section>
-        ))}
-      </div>
+      <ArticleBody text={text} />
       {text.faq?.length ? (
         <section className="mt-12" aria-labelledby="article-faq" data-testid="article-faq">
           <h2 id="article-faq" className="mb-4 font-display text-3xl">
@@ -173,6 +191,156 @@ function ArticlePage() {
           <ArticleCards articles={related} headingLevel={3} />
         </aside>
       ) : null}
+    </article>
+  )
+}
+
+// 风格落地页：顶部嵌入预选该风格的生成器和样片，下面是正文、三步流程、FAQ、其他风格入口。
+// 封面（cover）只用于分享图、Article.image 和列表卡片，落地页首屏是生成器，不显示封面
+function StyleLandingPage({ article }: { article: Article }) {
+  const c = useContent()
+  const locale = useLocale()
+  const lp = useLocalePath()
+  const text: ArticleContent = c.articles[article.key]
+  const pageStyle = findStyle(article.style!)!
+  const [styleId, setStyleId] = useState<string>(pageStyle.id)
+  const style = findStyle(styleId) ?? pageStyle
+  const styleCopy = (id: string) => c.styles[id as keyof typeof c.styles]
+  const related = relatedArticles(article)
+  const otherStyles = DISPLAY_STYLES.filter((s) => s.id !== pageStyle.id)
+  // 首页的三步写的是通用流程（单人照、按秒计费），文章可以换成本风格的
+  const steps = text.steps ?? c.howTo.steps
+  return (
+    <article>
+      <section className="relative overflow-hidden">
+        <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden />
+        <div className="container-page relative grid gap-10 py-10 lg:grid-cols-[minmax(0,430px)_1fr] lg:gap-16 lg:py-14">
+          <div className="space-y-5" id="create">
+            <Breadcrumbs items={breadcrumbItems(c, text.title, `/${article.slug}`, true)} />
+            <h1 className="font-display text-5xl leading-[1.04] tracking-tight sm:text-6xl">{text.title}</h1>
+            <p className="text-sm text-muted">
+              {c.common.lastUpdated}: <time dateTime={article.updatedAt}>{formatDay(article.updatedAt, locale)}</time>
+            </p>
+            <p className="text-lg leading-8 text-muted">{text.intro}</p>
+            <Generator styleId={style.id} onStyleChange={setStyleId} />
+          </div>
+          <div className="flex flex-col justify-center gap-5">
+            <div
+              data-testid="landing-samples"
+              // 原片 + 样片一共 2 段时收窄成两列，卡片和三列时一样大
+              className={`grid gap-3 sm:gap-4 ${style.examples.aiVersions.length === 1 ? 'mx-auto w-2/3 grid-cols-2' : 'grid-cols-3'}`}
+            >
+              <VideoCard
+                key={`${style.id}-original`}
+                video={style.examples.original.video}
+                poster={style.examples.original.poster}
+                label={c.hero.original}
+                credit={style.examples.original.credit}
+              />
+              {style.examples.aiVersions.map((v) => (
+                <VideoCard
+                  key={v.video}
+                  video={v.video}
+                  poster={v.poster}
+                  credit={v.credit}
+                  label={
+                    <>
+                      <Sparkles className="size-3" /> {c.hero.aiVersion}
+                    </>
+                  }
+                />
+              ))}
+            </div>
+            <p className="text-center text-xs text-muted">{c.hero.creditNote}</p>
+          </div>
+        </div>
+      </section>
+      <div className="container-page max-w-3xl pb-16">
+        <ArticleBody text={text} />
+        <section className="mt-12" aria-labelledby="landing-how-to">
+          <p className="eyebrow text-accent-text">{c.howTo.eyebrow}</p>
+          <h2 id="landing-how-to" className="mt-3 font-display text-3xl leading-tight">
+            {c.howTo.title}
+          </h2>
+          <ol className="mt-8 grid gap-5 md:grid-cols-3">
+            {steps.map((step, index) => (
+              <li key={step.title} className="card p-6">
+                <span className="font-display text-4xl text-accent">{index + 1}</span>
+                <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
+                <p className="mt-2 leading-7 text-muted">{step.body}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-8">
+            <a href="#create" className="btn-primary">
+              {c.howTo.cta}
+            </a>
+          </div>
+        </section>
+        {text.faq?.length ? (
+          <section className="mt-12" aria-labelledby="article-faq" data-testid="article-faq">
+            <h2 id="article-faq" className="mb-4 font-display text-3xl">
+              {c.guides.faqTitle}
+            </h2>
+            <FaqList items={text.faq} />
+          </section>
+        ) : null}
+        {STYLES.length > 1 ? (
+          <section className="mt-12" aria-labelledby="landing-other-styles" data-testid="landing-other-styles">
+            <h2 id="landing-other-styles" className="mb-5 font-display text-2xl">
+              {c.guides.otherStyles}
+            </h2>
+            <ul className="grid gap-4 sm:grid-cols-2">
+              {otherStyles.map((s) => {
+                const target = styleLandingArticle(s.id)
+                const copy = styleCopy(s.id)
+                const inner = (
+                  <>
+                    <img
+                      src={s.examples.aiVersions[0]?.poster ?? s.examples.original.poster}
+                      alt=""
+                      loading="lazy"
+                      className="aspect-[9/16] w-20 shrink-0 rounded-xl object-cover ring-1 ring-line"
+                    />
+                    <span>
+                      <span className="block font-semibold">{copy.name}</span>
+                      <span className="mt-1 block text-sm text-muted">{copy.tagline}</span>
+                    </span>
+                  </>
+                )
+                const cls = 'card flex items-center gap-4 p-4 hover:text-accent-text'
+                return (
+                  <li key={s.id}>
+                    {target ? (
+                      <LocalLink to={`/${target.slug}`} className={cls} data-testid={`landing-style-${s.id}`}>
+                        {inner}
+                      </LocalLink>
+                    ) : (
+                      <a href={`${lp('/')}?style=${s.id}#create`} className={cls} data-testid={`landing-style-${s.id}`}>
+                        {inner}
+                      </a>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ) : null}
+        <div className="card mt-12 flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-display text-2xl">{c.finalCta.title}</p>
+          <a href="#create" className="btn-primary shrink-0">
+            {c.finalCta.cta}
+          </a>
+        </div>
+        {related.length ? (
+          <aside className="mt-14" aria-labelledby="related-guides">
+            <h2 id="related-guides" className="mb-5 font-display text-2xl">
+              {c.guides.related}
+            </h2>
+            <ArticleCards articles={related} headingLevel={3} />
+          </aside>
+        ) : null}
+      </div>
     </article>
   )
 }

@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { ARTICLES, DISPLAY_STYLES, LOCALES, STYLES, defaultStyle, featuredStyle, findStyle, site, styleDurations, stylePhotoCount } from '#/config/site'
+import type { ArticleContent } from '#/content/en'
 import { loadContent } from '#/lib/i18n'
 
 // 风格配置的一致性：加风格时漏掉文案、源视频或 id 重复，在这里就能发现
@@ -70,6 +71,17 @@ describe('site.styles', () => {
   it('文章绑定的 style 必须是存在的风格 id', () => {
     for (const article of ARTICLES) {
       if (article.style !== undefined) expect(findStyle(article.style), `${article.key}.style = ${article.style}`).toBeTruthy()
+    }
+  })
+
+  it('双人风格或有自己时长档位的风格，落地页在每种语言都写了自己的三步（首页通用三步按单人照和全站 durations 写）', async () => {
+    for (const article of ARTICLES) {
+      const style = article.landing && article.style ? findStyle(article.style) : undefined
+      if (!style || (stylePhotoCount(style) === 1 && !style.durations)) continue
+      for (const locale of LOCALES) {
+        const text = (await loadContent(locale)).articles[article.key] as ArticleContent
+        expect(text.steps?.length, `${locale}/${article.key}.steps`).toBeGreaterThan(0)
+      }
     }
   })
 })

@@ -31,7 +31,7 @@ export function FaqList({ items }: { items: Array<{ q: string; a: string; guide?
           </summary>
           <p className="mt-3 leading-7 text-muted">{item.a}</p>
           {item.guide ? (
-            <LocalLink to={articlePath(item.guide.article)} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent">
+            <LocalLink to={articlePath(item.guide.article)} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-accent-text">
               {item.guide.label} <ArrowRight className="size-4" />
             </LocalLink>
           ) : null}

@@ -8,7 +8,15 @@ type StyleCopy = { name: string; tagline: string }
 // faq 可选：有就在正文后渲染折叠问答，并输出 FAQPage 结构化数据
 // 文章段落可选的表格（对比、规格），渲染在该段落的文字之后；第一列作为行标题
 export type ArticleTable = { head: string[]; rows: string[][] }
-export type ArticleContent = { title: string; description: string; intro: string; sections: Array<{ h: string; p: string[]; table?: ArticleTable }>; faq?: Array<{ q: string; a: string }> }
+// steps 只在风格落地页（site.articles 的 landing）用：替换首页的三步流程，写本风格的上传要求和档位；双人风格的落地页必须写（tests/unit/styles.test.ts 核对）
+export type ArticleContent = {
+  title: string
+  description: string
+  intro: string
+  sections: Array<{ h: string; p: string[]; table?: ArticleTable }>
+  faq?: Array<{ q: string; a: string }>
+  steps?: Array<{ title: string; body: string }>
+}
 // FAQ 答案可附一条文章链接；锚文本用与文章标题不同的长尾词
 type FaqItem = { q: string; a: string; guide?: { article: ArticleKey; label: string } }
 // 首页可选转化区块，设为 null 就不渲染。痛点只写不用本站时的麻烦，不提产品；对比逐行写“自己做”和“用本站”，不承诺生成效果
@@ -574,6 +582,7 @@ export function en(s: S) {
       related: 'Related guides',
       styleDemo: `See the ${k} routine in action`,
       faqTitle: 'FAQ',
+      otherStyles: `More ${k} styles`,
     },
     errors: {
       unauthorized: 'Please sign in first.',

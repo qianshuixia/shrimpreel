@@ -206,11 +206,12 @@ export const site = {
   // cover 可选：public/ 下 1200×630 的图片路径，用在列表卡片、文章顶部、og:image 和 Article 的 image；
   // 用 scripts/article-cover.mjs 从站点自己的视频截帧生成（带标题、标签，可选多种版式）。不填时卡片没有图，og:image 用站点默认图
   // style 可选：填 styles[].id，文章页在导语后显示该风格的原片和 AI 样片，文末按钮跳到 /?style=<id>#create 预选风格；id 不存在就当没填
+  // landing 可选：true 且 style 有效时，文章页变成该风格的落地页（顶部嵌入预选该风格的生成器和样片，正文、三步流程、FAQ、其他风格入口在下面）；style 无效时按普通文章渲染
   // 文章正文的 faq 可选（content 的 articles[key].faq）：有就在正文后渲染折叠问答并输出 FAQPage 结构化数据
   // 段落的 table 可选（sections[i].table，{ head, rows }）：渲染在该段文字之后，第一列作行标题，适合对比表和规格表；窄屏横向滚动
   articles: [
     { key: 'trend', slug: 'neon-shuffle-ai-trend', publishedAt: '2026-10-20', updatedAt: '2026-10-20', cover: '/guides/neon-shuffle-ai-trend.jpg' },
-    { key: 'howTo', slug: 'how-to-make-neon-shuffle-ai-video', publishedAt: '2026-10-20', updatedAt: '2026-10-20', style: 'neon-shuffle-v1' },
+    { key: 'howTo', slug: 'how-to-make-neon-shuffle-ai-video', publishedAt: '2026-10-20', updatedAt: '2026-10-20', style: 'neon-shuffle-v1', landing: true },
   ],
 
   seo: {
@@ -378,8 +379,14 @@ export interface Article {
   related?: readonly ArticleKey[]
   cover?: string
   style?: string
+  landing?: boolean
 }
 export const ARTICLES: readonly Article[] = site.articles
+
+// 某个风格的落地页文章（landing: true 且 style 指向它的第一篇）
+export function styleLandingArticle(styleId: string): Article | undefined {
+  return ARTICLES.find((a) => a.landing && a.style === styleId)
+}
 
 export function findArticle(slug: string) {
   return ARTICLES.find((a) => a.slug === slug)

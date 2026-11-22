@@ -4,6 +4,38 @@ Notable changes to the template. Derived sites pick them up with `git merge` fro
 
 中文说明在每条下方。
 
+## 2026-11-22
+
+### Added: style landing pages
+
+- An article with a valid `style` and `landing: true` becomes that style's landing page: the generator (style preselected) and the style's sample videos at the top, then the body, the three steps, the FAQ and links to the other styles (to their landing pages when they have one). The steps and the closing button point to `#create` on the page, the breadcrumb and BreadcrumbList are Home → page, a signed-out visitor returns to the page after signing in, and the home page's "Made with" links the style name to it (now shown on a single-style site too when the style has a landing page). With an unknown `style` the article renders as before. Helper: `styleLandingArticle(styleId)`.
+- The three steps come from the home page unless the article's content sets `steps` (`[{ title, body }]`). The home page's steps describe one solo photo and the site-wide `durations`, so a landing page for a two-photo style, or for a style with its own `durations`, must set `steps` in every locale; `tests/unit/styles.test.ts` fails otherwise. The steps always describe the page's own style; if a visitor switches style in the generator, the upload slots and length cards show what the new style needs (the home page works the same way).
+- A landing page doesn't render the `cover` image (the generator takes the top); the cover remains the share image, `Article.image` and the guide card picture.
+
+Upgrading a site: merge upstream and add `guides.otherStyles` to both `src/content/en.ts` and `zh.ts` (for example `` `More ${k} styles` `` / `` `更多 ${k} 风格` ``), otherwise typecheck fails. To use it, set `landing: true` on an article that has `style` in `src/config/site.ts`; for a two-photo style, or a style with its own `durations`, also add `steps` to that article in both content files.
+
+新增：风格落地页。
+- 带有效 `style` 的文章再加 `landing: true`，就成为该风格的落地页：顶部是预选该风格的生成器和样片，下面依次是正文、三步流程、FAQ 和其他风格入口（有落地页的链到落地页）。三步流程和文末按钮指向本页 `#create`，面包屑和 BreadcrumbList 只有首页 → 本页，访客登录后回到本页，首页“Made with”里的风格名也链到这里（单风格站只要该风格有落地页也显示）。`style` 无效时按原来的普通文章渲染。新增 `styleLandingArticle(styleId)`。
+- 三步流程默认用首页的，文章 content 里写了 `steps`（`[{ title, body }]`）就用文章的。首页的三步按单人照和全站 `durations` 写，所以双人风格、或者有自己 `durations` 的风格，落地页每种语言都要写 `steps`，否则 `tests/unit/styles.test.ts` 失败。三步始终写本页风格；访客在生成器里换了风格，以上传槽和时长卡片显示的要求为准（首页也是这样）。
+- 落地页不渲染 `cover` 封面图（首屏是生成器），封面仍用作分享图、`Article.image` 和指南列表卡片的配图。
+
+站点升级：合并 upstream 后在 `src/content/en.ts`、`zh.ts` 两份里补 `guides.otherStyles`（例如 `` `More ${k} styles` `` / `` `更多 ${k} 风格` ``），否则 typecheck 报错。要启用时，在 `src/config/site.ts` 给带 `style` 的文章加 `landing: true`；双人风格或有自己 `durations` 的风格，还要在两份 content 里给这篇文章写 `steps`。
+
+### Added: `holiday` theme
+
+- A third theme for Christmas sites: frost white light mode and a deep pine "Christmas Eve" dark mode, cranberry accent with warm gold, Young Serif headings, a tartan ribbon on the header and footer, and light snow behind the hero that stops with `prefers-reduced-motion`. The decoration is CSS (the header and footer gained `site-header` / `site-footer` classes for it), and the root route preloads the font for this theme only. The font (SIL OFL 1.1, Latin subset, 27 KB) is self-hosted with its license in `src/assets/fonts/` and preloaded only when `site.theme` is `holiday`; Chinese headings fall back to the system serif.
+- `src/styles.css` now has `@source not './assets'` so Tailwind doesn't scan the font license text for class names.
+- All themes: hovered text links now use `--accent-text` instead of `--accent`. `--accent` is meant for icons, large text and fills; as link text it fell below 4.5:1 in classic light mode (3.97:1) and was close to invisible in acid light mode. Dark classic and acid look the same as before (the two values are equal there).
+
+Upgrading a site: merge upstream; nothing to change. To use it, set `theme: 'holiday'` in `src/config/site.ts`.
+
+新增：`holiday` 圣诞主题。
+- 给圣诞站用的第三套主题：亮色霜白、暗色“平安夜”深松绿，蔓越莓红强调加暖金点缀，标题用 Young Serif，页头页脚有格纹丝带，首屏有小雪，`prefers-reduced-motion` 下不动。装饰由 CSS 实现（页头页脚为此加了 `site-header`、`site-footer` 类），根路由只在这个主题下预加载字体。字体（SIL OFL 1.1，拉丁子集，27 KB）和许可证自托管在 `src/assets/fonts/`，只有 `site.theme` 为 `holiday` 时才预加载；中文标题回退到系统衬线字体。
+- `src/styles.css` 加了 `@source not './assets'`，免得 Tailwind 把字体许可证里的英文单词当成类名。
+- 所有主题：链接悬停后的文字色从 `--accent` 改为 `--accent-text`。`--accent` 只适合图标、大字和背景，做链接文字时 classic 亮色只有 3.97:1，acid 亮色几乎看不见；classic、acid 的暗色两者取值相同，外观不变。
+
+站点升级：合并 upstream 即可，不用改别的。要启用时，在 `src/config/site.ts` 里把 `theme` 改成 `'holiday'`。
+
 ## 2026-11-12
 
 ### Fixed: SEO e2e when the trend article has its own FAQ

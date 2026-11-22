@@ -21,7 +21,7 @@ export function Nav() {
   ]
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
+    <header className="site-header sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
       <nav className="container-page flex h-16 items-center justify-between gap-4">
         <Logo />
         <div className="hidden items-center gap-10 md:flex">
@@ -84,7 +84,7 @@ function AccountButton() {
   if (loading) return <span className="inline-block h-9 w-20" aria-hidden />
   if (!user) {
     return (
-      <LocalLink to="/sign-in" className="eyebrow px-2 py-2 hover:text-accent" data-testid="nav-sign-in">
+      <LocalLink to="/sign-in" className="eyebrow px-2 py-2 hover:text-accent-text" data-testid="nav-sign-in">
         {c.nav.signIn}
       </LocalLink>
     )

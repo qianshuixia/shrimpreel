@@ -36,7 +36,7 @@ export function Footer() {
   ]
   // 页脚两种模式下都是深色，颜色取主题的 --footer-bg / --footer-fg
   return (
-    <footer className="bg-footer text-footer-fg">
+    <footer className="site-footer bg-footer text-footer-fg">
       <div className="container-page grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr]">
         <div className="space-y-5">
           <div className="flex items-center gap-2.5">
