@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { ArrowRight, Camera, Check, Clock, Coins, Film, Flame, ShieldCheck, Smartphone, Sparkles, X } from 'lucide-react'
 import { Faq, faqJsonLd } from '#/components/Faq'
 import { Generator } from '#/components/Generator'
+import { HolidaySnow } from '#/components/HolidaySnow'
 import { Pricing } from '#/components/Pricing'
 import { VideoCard } from '#/components/VideoCard'
 import { LocalLink } from '#/components/ui'
@@ -42,16 +43,17 @@ function Home() {
   const styleCopy = (id: string) => c.styles[id as keyof typeof c.styles]
   return (
     <>
-      {/* Hero：左侧生成器，右侧原版 vs AI 版对比 */}
-      <section className="relative overflow-hidden">
+      {/* Hero：左侧生成器，右侧吸顶展示原版 vs AI 版对比，避免多风格时右侧大面积留白 */}
+      <section className="relative overflow-x-clip">
         <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden />
-        <div className="container-page relative grid gap-10 py-10 lg:grid-cols-[minmax(0,430px)_1fr] lg:gap-16 lg:py-14">
+        <HolidaySnow />
+        <div className="container-page relative grid items-start gap-10 py-10 lg:grid-cols-[minmax(0,440px)_1fr] lg:gap-14 lg:py-12">
           <div className="space-y-5" id="create">
             <h1 className="font-display text-5xl leading-[1.04] tracking-tight sm:text-6xl">{c.hero.title}</h1>
             <p className="text-lg leading-8 text-muted">{c.hero.subtitle}</p>
             <Generator styleId={style.id} onStyleChange={setStyleId} />
           </div>
-          <div className="flex flex-col justify-center gap-5">
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
             <span className="chip w-fit">
               <Flame className="size-4 text-accent" /> {c.hero.badge}
             </span>
@@ -79,7 +81,11 @@ function Home() {
                         setStyleId(next.id)
                         document.getElementById(`hero-tab-${next.id}`)?.focus()
                       }}
-                      className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${active ? 'bg-ink text-ink-fg' : 'bg-bg-soft text-muted ring-1 ring-line hover:text-fg'}`}
+                      className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                        active
+                          ? 'bg-(--tab-active-bg,var(--ink)) text-(--tab-active-fg,var(--ink-fg)) shadow-sm'
+                          : 'bg-bg-soft text-muted ring-1 ring-line hover:text-fg'
+                      }`}
                     >
                       {styleCopy(s.id).name}
                     </button>
@@ -88,8 +94,8 @@ function Home() {
               </div>
             ) : null}
             <div
-              // 原片 + 样片一共 2 段时（例如双人风格只有一段样片）收窄成两列，卡片和三列时一样大
-              className={`grid gap-3 sm:gap-4 ${style.examples.aiVersions.length === 1 ? 'mx-auto w-2/3 grid-cols-2' : 'grid-cols-3'}`}
+              // 原片 + 样片一共 2 段时用宽双列居中，兼顾画面饱满与三列一致的视觉权重
+              className={`grid gap-3 sm:gap-4 ${style.examples.aiVersions.length === 1 ? 'mx-auto w-full max-w-[500px] grid-cols-2' : 'grid-cols-3'}`}
               {...(STYLES.length > 1 ? { id: 'hero-panel', role: 'tabpanel', 'aria-labelledby': `hero-tab-${style.id}` } : {})}
             >
               <VideoCard key={`${style.id}-original`} video={style.examples.original.video} poster={style.examples.original.poster} label={c.hero.original} credit={style.examples.original.credit} />
@@ -208,19 +214,91 @@ function Home() {
         </div>
       </section>
 
-      {/* Made with：照片 → 成片 */}
+      {/* Made with：照片 → 成片；1-2 种风格沿用双列，3 种及以上顶部主打+下方双列画廊，消除左侧大片空白 */}
       <section id="examples" className="scroll-mt-20 border-t border-line bg-bg-soft/60 py-20">
-        <div className="container-page grid items-center gap-12 lg:grid-cols-[1fr_1.1fr]">
-          <div className="space-y-4">
-            <p className="eyebrow text-accent-text">{c.madeWith.eyebrow}</p>
-            <h2 className="font-display text-4xl leading-tight sm:text-5xl">{c.madeWith.title}</h2>
-            <p className="max-w-md text-lg leading-8 text-muted">{c.madeWith.body}</p>
+        {DISPLAY_STYLES.length <= 2 ? (
+          <div className="container-page grid items-center gap-12 lg:grid-cols-[1fr_1.1fr]">
+            <div className="space-y-4">
+              <p className="eyebrow text-accent-text">{c.madeWith.eyebrow}</p>
+              <h2 className="font-display text-4xl leading-tight sm:text-5xl">{c.madeWith.title}</h2>
+              <p className="max-w-md text-lg leading-8 text-muted">{c.madeWith.body}</p>
+            </div>
+            {/* 每种风格各一行（服务端渲染，不依赖 JS）；单风格且没有落地页时不显示风格名 */}
+            <div className="space-y-10">
+              {DISPLAY_STYLES.map((s) => (
+                <div key={s.id} className="space-y-3" data-testid={`made-with-${s.id}`}>
+                  {STYLES.length > 1 || styleLandingArticle(s.id) ? (
+                    <p className="text-sm">
+                      {styleLandingArticle(s.id) ? (
+                        <LocalLink to={`/${styleLandingArticle(s.id)!.slug}`} className="font-semibold hover:text-accent-text" data-testid={`made-with-link-${s.id}`}>
+                          {styleCopy(s.id).name}
+                        </LocalLink>
+                      ) : (
+                        <span className="font-semibold">{styleCopy(s.id).name}</span>
+                      )}
+                      <span className="text-muted"> · {styleCopy(s.id).tagline}</span>
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                    <figure>
+                      <img src={s.examples.madeWith.photo} alt={c.alt.inputPhoto} loading="lazy" className="aspect-[3/4] w-full rounded-2xl object-cover ring-1 ring-line" />
+                      <figcaption className="mt-2 text-center text-xs text-muted">{c.madeWith.photoLabel}</figcaption>
+                    </figure>
+                    <ArrowRight className="size-6 text-muted" aria-hidden />
+                    <div>
+                      <VideoCard video={s.examples.madeWith.video} poster={s.examples.madeWith.poster} />
+                      <p className="mt-2 text-center text-xs text-muted">{c.madeWith.resultLabel}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          {/* 每种风格各一行（服务端渲染，不依赖 JS）；单风格且没有落地页时不显示风格名 */}
-          <div className="space-y-10">
-            {DISPLAY_STYLES.map((s) => (
-              <div key={s.id} className="space-y-3" data-testid={`made-with-${s.id}`}>
-                {STYLES.length > 1 || styleLandingArticle(s.id) ? (
+        ) : (
+          <div className="container-page space-y-10">
+            <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.15fr]">
+              <div className="space-y-4">
+                <p className="eyebrow text-accent-text">{c.madeWith.eyebrow}</p>
+                <h2 className="font-display text-4xl leading-tight sm:text-5xl">{c.madeWith.title}</h2>
+                <p className="max-w-md text-lg leading-8 text-muted">{c.madeWith.body}</p>
+                <div className="pt-2">
+                  <a href="#create" className="btn-primary">
+                    {c.howTo.cta}
+                  </a>
+                </div>
+              </div>
+              {(() => {
+                const s = DISPLAY_STYLES[0]!
+                return (
+                  <div key={s.id} className="card space-y-3 p-5" data-testid={`made-with-${s.id}`}>
+                    <p className="text-sm">
+                      {styleLandingArticle(s.id) ? (
+                        <LocalLink to={`/${styleLandingArticle(s.id)!.slug}`} className="font-semibold hover:text-accent-text" data-testid={`made-with-link-${s.id}`}>
+                          {styleCopy(s.id).name}
+                        </LocalLink>
+                      ) : (
+                        <span className="font-semibold">{styleCopy(s.id).name}</span>
+                      )}
+                      <span className="text-muted"> · {styleCopy(s.id).tagline}</span>
+                    </p>
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                      <figure>
+                        <img src={s.examples.madeWith.photo} alt={c.alt.inputPhoto} loading="lazy" className="aspect-[3/4] w-full rounded-2xl object-cover ring-1 ring-line" />
+                        <figcaption className="mt-2 text-center text-xs text-muted">{c.madeWith.photoLabel}</figcaption>
+                      </figure>
+                      <ArrowRight className="size-5 text-muted" aria-hidden />
+                      <div>
+                        <VideoCard video={s.examples.madeWith.video} poster={s.examples.madeWith.poster} />
+                        <p className="mt-2 text-center text-xs text-muted">{c.madeWith.resultLabel}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              {DISPLAY_STYLES.slice(1).map((s) => (
+                <div key={s.id} className="card space-y-3 p-5" data-testid={`made-with-${s.id}`}>
                   <p className="text-sm">
                     {styleLandingArticle(s.id) ? (
                       <LocalLink to={`/${styleLandingArticle(s.id)!.slug}`} className="font-semibold hover:text-accent-text" data-testid={`made-with-link-${s.id}`}>
@@ -231,22 +309,22 @@ function Home() {
                     )}
                     <span className="text-muted"> · {styleCopy(s.id).tagline}</span>
                   </p>
-                ) : null}
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                  <figure>
-                    <img src={s.examples.madeWith.photo} alt={c.alt.inputPhoto} loading="lazy" className="aspect-[3/4] w-full rounded-2xl object-cover ring-1 ring-line" />
-                    <figcaption className="mt-2 text-center text-xs text-muted">{c.madeWith.photoLabel}</figcaption>
-                  </figure>
-                  <ArrowRight className="size-6 text-muted" aria-hidden />
-                  <div>
-                    <VideoCard video={s.examples.madeWith.video} poster={s.examples.madeWith.poster} />
-                    <p className="mt-2 text-center text-xs text-muted">{c.madeWith.resultLabel}</p>
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-4">
+                    <figure>
+                      <img src={s.examples.madeWith.photo} alt={c.alt.inputPhoto} loading="lazy" className="aspect-[3/4] w-full rounded-2xl object-cover ring-1 ring-line" />
+                      <figcaption className="mt-2 text-center text-xs text-muted">{c.madeWith.photoLabel}</figcaption>
+                    </figure>
+                    <ArrowRight className="size-5 text-muted" aria-hidden />
+                    <div>
+                      <VideoCard video={s.examples.madeWith.video} poster={s.examples.madeWith.poster} />
+                      <p className="mt-2 text-center text-xs text-muted">{c.madeWith.resultLabel}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* What is：解释趋势本身，承接 "what is {keyword}" 信息型搜索 */}
@@ -357,7 +435,7 @@ function Home() {
       {/* Final CTA */}
       <section className="pb-24">
         <div className="container-page">
-          <div className="relative overflow-hidden rounded-3xl bg-ink px-6 py-16 text-center text-ink-fg sm:px-12">
+          <div className="holiday-cta relative overflow-hidden rounded-3xl bg-ink px-6 py-16 text-center text-ink-fg sm:px-12">
             <div
               className="pointer-events-none absolute inset-0 opacity-40 [background:radial-gradient(50%_60%_at_20%_0%,var(--accent),transparent_70%),radial-gradient(40%_50%_at_90%_100%,var(--accent-2),transparent_70%)]"
               aria-hidden

@@ -258,35 +258,83 @@ export function Generator({ styleId: controlledStyleId, onStyleChange }: { style
         )}
       </section>
 
-      {/* 2. 风格：只有一种风格时不显示 */}
+      {/* 2. 风格：只有一种风格时不显示；风格超过 4 个时用 3 列紧凑视觉卡片，避免把下方 CTA 顶出首屏 */}
       {STYLES.length > 1 ? (
-        <section className="space-y-3">
+        <section className="space-y-2.5">
           <StepTitle n={2}>{g.stepStyle}</StepTitle>
-          <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={g.stepStyle}>
-            {DISPLAY_STYLES.map((style) => {
-              const active = style.id === styleId
-              const copy = c.styles[style.id as keyof typeof c.styles]
-              const thumb = style.examples.aiVersions[0]
-              return (
-                <button
-                  key={style.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  disabled={busy}
-                  data-testid={`style-${style.id}`}
-                  onClick={() => selectStyle(style.id)}
-                  className={`flex items-center gap-3 rounded-xl p-2 text-left transition ${active ? 'bg-card shadow-sm ring-2 ring-ink' : 'bg-bg-soft text-muted ring-1 ring-line hover:text-fg'}`}
-                >
-                  {thumb ? <img src={thumb.poster} alt="" loading="lazy" className="aspect-[3/4] w-10 shrink-0 rounded-md object-cover" /> : null}
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-fg">{copy.name}</span>
-                    <span className="block text-xs text-muted">{copy.tagline}</span>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          {DISPLAY_STYLES.length > 4 ? (
+            <>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={g.stepStyle}>
+                {DISPLAY_STYLES.map((style) => {
+                  const active = style.id === styleId
+                  const copy = c.styles[style.id as keyof typeof c.styles]
+                  const thumb = style.examples.aiVersions[0] ?? style.examples.original
+                  return (
+                    <button
+                      key={style.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      disabled={busy}
+                      title={`${copy.name} · ${copy.tagline}`}
+                      data-testid={`style-${style.id}`}
+                      onClick={() => selectStyle(style.id)}
+                      className={`flex flex-col items-center gap-1.5 rounded-xl p-1.5 text-center transition ${
+                        active
+                          ? 'bg-card shadow-sm ring-2 ring-(--style-ring,var(--ink))'
+                          : 'bg-bg-soft text-muted ring-1 ring-line hover:text-fg'
+                      }`}
+                    >
+                      {thumb ? (
+                        <img
+                          src={thumb.poster}
+                          alt=""
+                          loading="lazy"
+                          className="aspect-[4/3] w-full rounded-lg object-cover object-[center_18%]"
+                        />
+                      ) : null}
+                      <span className="line-clamp-1 w-full text-xs font-semibold text-fg">{copy.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs leading-5 text-muted">
+                <span className="font-semibold text-fg">{c.styles[currentStyle.id as keyof typeof c.styles].name}</span>
+                {' · '}
+                {c.styles[currentStyle.id as keyof typeof c.styles].tagline}
+              </p>
+            </>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={g.stepStyle}>
+              {DISPLAY_STYLES.map((style) => {
+                const active = style.id === styleId
+                const copy = c.styles[style.id as keyof typeof c.styles]
+                const thumb = style.examples.aiVersions[0]
+                return (
+                  <button
+                    key={style.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={busy}
+                    data-testid={`style-${style.id}`}
+                    onClick={() => selectStyle(style.id)}
+                    className={`flex items-center gap-3 rounded-xl p-2 text-left transition ${
+                      active
+                        ? 'bg-card shadow-sm ring-2 ring-(--style-ring,var(--ink))'
+                        : 'bg-bg-soft text-muted ring-1 ring-line hover:text-fg'
+                    }`}
+                  >
+                    {thumb ? <img src={thumb.poster} alt="" loading="lazy" className="aspect-[3/4] w-10 shrink-0 rounded-md object-cover" /> : null}
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-fg">{copy.name}</span>
+                      <span className="block text-xs text-muted">{copy.tagline}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -491,7 +539,7 @@ function PhotoDrop({
 function StepTitle({ n, children }: { n: number; children: string }) {
   return (
     <h3 className="flex items-center gap-2 text-sm font-semibold">
-      <span className="grid size-5 place-items-center rounded-full bg-ink text-[11px] text-ink-fg">{n}</span>
+      <span className="grid size-5 place-items-center rounded-full bg-(--step-bg,var(--ink)) text-[11px] text-(--step-fg,var(--ink-fg))">{n}</span>
       <span>{children}</span>
     </h3>
   )

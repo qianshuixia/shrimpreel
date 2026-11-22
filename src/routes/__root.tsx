@@ -11,12 +11,16 @@ import { CONSENT_REQUIRED, clarityBootstrapScript, consentDefault, ga4BootstrapS
 import { installErrorReporting, reportClientError } from '#/lib/error-report'
 import { htmlLang, loadContent, localeFromPathname, useContent } from '#/lib/i18n'
 import { SessionProvider } from '#/lib/session'
-import { THEME_COLOR } from '#/lib/theme'
+import { THEME_COLOR, THEME_DEFAULT_MODE } from '#/lib/theme'
 import holidayFont from '../assets/fonts/young-serif-latin.woff2?url'
 import css from '../styles.css?url'
 
-// 首屏前设置主题，避免闪烁
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch(e){}})()`
+const DEFAULT_THEME_MODE = THEME_DEFAULT_MODE[site.theme]
+// 首屏前设置主题，避免闪烁：访客手动切过则尊重 localStorage，否则按主题默认模式（holiday 默认暗色，其它跟随系统）
+const THEME_SCRIPT =
+  DEFAULT_THEME_MODE === 'system'
+    ? `(function(){try{var t=localStorage.getItem('theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch(e){}})()`
+    : `(function(){try{var t=localStorage.getItem('theme')||'${DEFAULT_THEME_MODE}';document.documentElement.dataset.theme=t}catch(e){}})()`
 
 // head 里的脚本由框架带上 CSP nonce（见 src/server/csp.ts），自定义内联脚本都放这里，不要直接写 <script>
 function headScripts() {
@@ -90,6 +94,7 @@ function RootDocument({ children }: { children: ReactNode }) {
     <html
       lang={htmlLang(localeFromPathname(pathname))}
       data-skin={site.theme}
+      data-theme={DEFAULT_THEME_MODE === 'system' ? undefined : DEFAULT_THEME_MODE}
       data-consent-default={CONSENT_REQUIRED ? defaultConsent : undefined}
       suppressHydrationWarning
     >

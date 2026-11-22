@@ -121,30 +121,34 @@
   --field-radius: 0.75rem;
   --btn-primary-bg: var(--accent);
   --btn-primary-fg: var(--accent-fg);
+  --tab-active-bg: var(--accent);
+  --tab-active-fg: var(--accent-fg);
+  --step-bg: var(--accent);
+  --step-fg: var(--accent-fg);
+  --style-ring: var(--accent);
   --accent-fg: #ffffff;
-  /* 格纹：蔓越莓红底，半透明松绿宽条横竖交叉（交叉处更深），细金线；Logo 和丝带共用 */
+  /* 格纹：圣诞红底，半透明松绿宽条横竖交叉（交叉处更深），细金线；Logo 和丝带共用 */
   --tartan:
     repeating-linear-gradient(90deg, rgb(15 46 36 / 0.55) 0 6px, transparent 6px 11px, rgb(240 200 100 / 0.95) 11px 12px, transparent 12px 24px),
     repeating-linear-gradient(0deg, rgb(15 46 36 / 0.55) 0 6px, transparent 6px 11px, rgb(240 200 100 / 0.95) 11px 12px, transparent 12px 24px),
-    linear-gradient(#c3203a, #c3203a);
+    linear-gradient(#c41e3a, #c41e3a);
   --logo-bg: var(--tartan);
   --logo-fg: #ffffff;
   --footer-bg: #0f2e24;
   --footer-fg: #f3efe6;
-  --bg: #f3f6f2;
-  --bg-soft: #e7eee8;
-  --card: #fdfefc;
-  --fg: #14231d;
-  --muted: #56655d;
-  --line: #d9e3dc;
-  --ink: #123d2f;
-  --ink-fg: #f6f3ea;
-  --accent: #c3203a;
-  --accent-text: #b01c34;
-  --accent-2: #c9972f;
-  --glow: rgb(195 32 58 / 0.1);
-  /* 亮色的雪用淡松绿：白雪落在霜白上看不见 */
-  --snow: rgb(18 61 47 / 0.2);
+  /* 暖雪白贺卡底色 + 圣诞红 + 松针绿 + 铃铛金，告别偏冷灰绿 */
+  --bg: #fbf7f0;
+  --bg-soft: #f2ebe0;
+  --card: #fffdf9;
+  --fg: #18251e;
+  --muted: #5a645d;
+  --line: #e4d8c6;
+  --ink: #144230;
+  --ink-fg: #faf6ef;
+  --accent: #c41e3a;
+  --accent-text: #a91830;
+  --accent-2: #d49b2a;
+  --glow: rgb(196 30 58 / 0.13);
   color-scheme: light;
 }
 
@@ -163,8 +167,7 @@
   --accent: #cf3149;
   --accent-text: #ff7d8c;
   --accent-2: #e2b552;
-  --glow: rgb(207 49 73 / 0.16);
-  --snow: rgb(255 255 255 / 0.5);
+  --glow: rgb(207 49 73 / 0.18);
   color-scheme: dark;
 }
 
@@ -342,19 +345,20 @@
   letter-spacing: 0;
 }
 
-/* 格纹丝带：页头顶边一条细的，页脚顶边一条宽的；绝对定位，不改变页头高度 */
+/* 格纹丝带：页头顶边一条圣诞红绿金格纹（配细金边），页脚顶边一条宽格纹；绝对定位，不改变页头高度 */
 [data-skin='holiday'] .site-header::before,
 [data-skin='holiday'] .site-footer::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
-  height: 6px;
+  height: 7px;
   background: var(--tartan);
   /* 竖条那层错开，让金线落在丝带中间 */
   background-position:
     0 0,
     0 -9px,
     0 0;
+  box-shadow: 0 1px 0 rgb(212 155 42 / 0.45);
   pointer-events: none;
 }
 [data-skin='holiday'] .site-footer {
@@ -368,53 +372,41 @@
     0 0;
 }
 
-/* 首屏飘雪：两层不同大小、不同速度的雪点，纯 CSS，只动 transform；每层下移一个图案周期后无缝循环。
-   首屏内容容器是 relative 且排在后面，雪落在内容后面 */
+/* 圣诞氛围卡片微饰：标签带暖金边框 */
+[data-skin='holiday'] .chip {
+  border-color: rgb(212 155 42 / 0.35);
+}
+
+/* 首屏冬夜光晕与圣诞灯饰柔光背景（飘雪动画交由离屏精灵 Canvas 组件 HolidaySnow 承担，具备真景深与自然风摆） */
 [data-skin='holiday'] .hero-glow {
   overflow: hidden;
-  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  background:
+    radial-gradient(62% 52% at 82% 10%, rgb(196 30 58 / 0.15), transparent 72%),
+    radial-gradient(54% 48% at 14% 6%, rgb(110 154 190 / 0.28), transparent 70%),
+    radial-gradient(46% 38% at 52% 0%, rgb(222 172 68 / 0.18), transparent 68%),
+    linear-gradient(180deg, rgb(206 222 238 / 0.72) 0%, rgb(251 247 240 / 0) 54%);
 }
-[data-skin='holiday'] .hero-glow::before,
-[data-skin='holiday'] .hero-glow::after {
+[data-skin='holiday'][data-theme='dark'] .hero-glow {
+  background:
+    radial-gradient(60% 50% at 80% 14%, rgb(207 49 73 / 0.24), transparent 72%),
+    radial-gradient(52% 46% at 16% 8%, rgb(38 118 92 / 0.26), transparent 70%),
+    radial-gradient(44% 36% at 50% 0%, rgb(232 190 90 / 0.15), transparent 68%);
+}
+/* 底部收尾 CTA：圣诞松绿底 + 柔和冬夜星光散景（纯 CSS 渐变，零持续动画开销），局域覆写 --ink/--ink-fg 保证亮暗高对比度 */
+[data-skin='holiday'] .holiday-cta {
+  --ink: #103326;
+  --ink-fg: #f6f3ea;
+}
+[data-skin='holiday'] .holiday-cta::after {
   content: '';
   position: absolute;
-  inset: calc(var(--snow-tile) * -1) 0 0;
-  background-size: var(--snow-tile) var(--snow-tile);
-  animation: holiday-snow var(--snow-duration) linear infinite;
-  will-change: transform;
-}
-/* 远处：小而慢。图案块要大、块内雪点位置不规则，否则看得出网格 */
-[data-skin='holiday'] .hero-glow::before {
-  --snow-tile: 360px;
-  --snow-duration: 40s;
-  background-image:
-    radial-gradient(circle at 8% 12%, var(--snow) 0 1.3px, transparent 2.4px),
-    radial-gradient(circle at 37% 29%, var(--snow) 0 1px, transparent 2px),
-    radial-gradient(circle at 71% 8%, var(--snow) 0 1.5px, transparent 2.6px),
-    radial-gradient(circle at 23% 62%, var(--snow) 0 1.1px, transparent 2.1px),
-    radial-gradient(circle at 56% 80%, var(--snow) 0 1.4px, transparent 2.5px),
-    radial-gradient(circle at 90% 53%, var(--snow) 0 1px, transparent 2px);
-}
-/* 近处：稍大稍快，更稀 */
-[data-skin='holiday'] .hero-glow::after {
-  --snow-tile: 520px;
-  --snow-duration: 40s;
-  background-image:
-    radial-gradient(circle at 17% 38%, var(--snow) 0 2.2px, transparent 3.6px),
-    radial-gradient(circle at 49% 7%, var(--snow) 0 1.8px, transparent 3.2px),
-    radial-gradient(circle at 83% 71%, var(--snow) 0 2.4px, transparent 3.8px),
-    radial-gradient(circle at 64% 46%, var(--snow) 0 1.6px, transparent 3px);
-}
-@keyframes holiday-snow {
-  to {
-    transform: translateY(var(--snow-tile));
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-skin='holiday'] .hero-glow::before,
-  [data-skin='holiday'] .hero-glow::after {
-    animation: none;
-  }
+  inset: 0;
+  background:
+    radial-gradient(circle 48px at 14% 24%, rgb(255 244 214 / 0.18), transparent 70%),
+    radial-gradient(circle 68px at 86% 20%, rgb(255 255 255 / 0.12), transparent 70%),
+    radial-gradient(circle 36px at 74% 82%, rgb(240 203 110 / 0.2), transparent 70%),
+    radial-gradient(circle 28px at 26% 78%, rgb(255 255 255 / 0.14), transparent 70%);
+  pointer-events: none;
 }
 
 @keyframes spin-slow {

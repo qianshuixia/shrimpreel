@@ -4,6 +4,7 @@ import { Sparkles } from 'lucide-react'
 import { ArticleCards } from '#/components/ArticleCards'
 import { faqJsonLd, FaqList } from '#/components/Faq'
 import { Generator } from '#/components/Generator'
+import { HolidaySnow } from '#/components/HolidaySnow'
 import { Breadcrumbs, formatDay, LocalLink } from '#/components/ui'
 import { VideoCard } from '#/components/VideoCard'
 import type { Article } from '#/config/site'
@@ -212,9 +213,10 @@ function StyleLandingPage({ article }: { article: Article }) {
   const steps = text.steps ?? c.howTo.steps
   return (
     <article>
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-x-clip">
         <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden />
-        <div className="container-page relative grid gap-10 py-10 lg:grid-cols-[minmax(0,430px)_1fr] lg:gap-16 lg:py-14">
+        <HolidaySnow />
+        <div className="container-page relative grid items-start gap-10 py-10 lg:grid-cols-[minmax(0,440px)_1fr] lg:gap-14 lg:py-12">
           <div className="space-y-5" id="create">
             <Breadcrumbs items={breadcrumbItems(c, text.title, `/${article.slug}`, true)} />
             <h1 className="font-display text-5xl leading-[1.04] tracking-tight sm:text-6xl">{text.title}</h1>
@@ -224,11 +226,11 @@ function StyleLandingPage({ article }: { article: Article }) {
             <p className="text-lg leading-8 text-muted">{text.intro}</p>
             <Generator styleId={style.id} onStyleChange={setStyleId} />
           </div>
-          <div className="flex flex-col justify-center gap-5">
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
             <div
               data-testid="landing-samples"
-              // 原片 + 样片一共 2 段时收窄成两列，卡片和三列时一样大
-              className={`grid gap-3 sm:gap-4 ${style.examples.aiVersions.length === 1 ? 'mx-auto w-2/3 grid-cols-2' : 'grid-cols-3'}`}
+              // 原片 + 样片一共 2 段时用宽双列居中，消除右侧空白
+              className={`grid gap-3 sm:gap-4 ${style.examples.aiVersions.length === 1 ? 'mx-auto w-full max-w-[500px] grid-cols-2' : 'grid-cols-3'}`}
             >
               <VideoCard
                 key={`${style.id}-original`}
